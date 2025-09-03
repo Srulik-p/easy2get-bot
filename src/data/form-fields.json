@@ -1,0 +1,357 @@
+{
+  "fields": {
+    "health-declaration": {
+      "slug": "health-declaration",
+      "name": "תצהיר בריאות",
+      "description": "יש למלא תצהיר בריאות אצל רופא המשפחה, פורמט התצהיר להורדה:",
+      "variants": ["הצהרת בריאות", "הצהרת בריאות חתומה על ידי רופא משפחה"],
+      "template": "/forms-teplates/health-declaration.pdf"
+    },
+    "id-copy-open": {
+      "slug": "id-copy-open", 
+      "name": "צילום ת.ז ספח פתוח",
+      "description": "יש להקפיד על צילום מלא של הזהות כולל ספח פתוח",
+      "variants": ["ת.ז ספח פתוח", "צילום תעודת זהות עם ספח פתוח - בתמונה אחידה"]
+    },
+    "form-830": {
+      "slug": "form-830",
+      "name": "טופס 830 (אישור צבאי)"
+    },
+    "form-807": {
+      "slug": "form-807", 
+      "name": "טופס 807"
+    },
+    "rank-approval": {
+      "slug": "rank-approval",
+      "name": "אישור דרגה"
+    },
+    "fighter-certificate": {
+      "slug": "fighter-certificate",
+      "name": "תעודת לוחם"
+    },
+    "residence-approval": {
+      "slug": "residence-approval",
+      "name": "אישור תושבות",
+      "description": "יש לפנות למוקד השירות של העירייה או המועצה ביישוב בו אתה גר ולבקש אישור תושבות"
+    },
+    "residence-declaration": {
+      "slug": "residence-declaration",
+      "name": "הצהרת תושבות",
+      "description": "יש למלא הצהרת תושבות, לנוחיותך ניתן להוריד את המסמך הבא:",
+      "templates": [
+        {
+          "label": "טופס רגיל",
+          "path": "/forms-teplates/residence-declaration.pdf"
+        },
+        {
+          "label": "במקרה של מגורים אצל ההורים",
+          "path": "/forms-teplates/residence-declaration-parents.pdf"
+        }
+      ]
+    },
+    "arnona-receipt": {
+      "slug": "arnona-receipt",
+      "name": "שובר ארנונה אחרון",
+      "description": "יש לצרף צילום של שובר ארנונה על שמך"
+    },
+    "arnona-bill": {
+      "slug": "arnona-bill",
+      "name": "חשבון ארנונה"
+    },
+    "electricity-bill": {
+      "slug": "electricity-bill", 
+      "name": "חשבון החשמל"
+    },
+    "water-bill": {
+      "slug": "water-bill",
+      "name": "חשבון מים"
+    },
+    "phone-bill": {
+      "slug": "phone-bill",
+      "name": "חשבון טלפון"
+    },
+    "credit-company-letter": {
+      "slug": "credit-company-letter",
+      "name": "מכתב מחברת אשראי"
+    },
+    "bank-letter": {
+      "slug": "bank-letter", 
+      "name": "מכתב מהבנק"
+    },
+    "other-mail": {
+      "slug": "other-mail",
+      "name": "מכתב אחר (עם כתובת ותאריך)"
+    },
+    "eligible-area-work-docs": {
+      "slug": "eligible-area-work-docs",
+      "name": "עובד באיזור זכאי - שמיע למקומות זכאים שמתנגים צריך לצרף בין 10 ל 12 תעודות משלוח/חשבוניות/קבלות/חוזה עבודה על עבודה במקומות זכאים"
+    },
+    "monthly-docs": {
+      "slug": "monthly-docs", 
+      "name": "עבור כל חודש- 3 חודשים קודמים לבקשה"
+    },
+    "occupation-letter": {
+      "slug": "occupation-letter",
+      "name": "מכתב שמפרט על עיסוקו",
+      "variants": ["מכתב שמפרט על העיסוק מטעם המעסיק"]
+    },
+    "driving-license": {
+      "slug": "driving-license",
+      "name": "רישיון נהיגה בתוקף, רישיון רכב",
+      "variants": ["רישיון נהיגה בתוקף", "רישיון רכב"]
+    },
+    "salary-slips": {
+      "slug": "salary-slips",
+      "name": "שלושה תלושי משכורת (עדכנים)",
+      "variants": ["תלושי שכר"]
+    },
+    "employer-approval": {
+      "slug": "employer-approval",
+      "name": "אישור מעסיק + תצהיר מעסיק לעבודה ישוב זכאי"
+    },
+    "invoices-quarterly": {
+      "slug": "invoices-quarterly",
+      "name": "חשבוניות- 3 חשבוניות בשבוע לפחות, 3 חודשים קודמים לבקשה"
+    },
+    "work-arrival-declaration": {
+      "slug": "work-arrival-declaration",
+      "name": "תצהיר הגעה ליישוב עבודה זכאי חתום על ידי עד"
+    },
+    "business-license": {
+      "slug": "business-license",
+      "name": "תעודת עוסק מורשה/פטור/חברה בע״מ בתוקף",
+      "variants": ["תעודת עוסק"]
+    },
+    "student-declaration": {
+      "slug": "student-declaration", 
+      "name": "תצהיר ואישור תלמיד/סטודנט אשר לומד ביישוב זכאי"
+    },
+    "study-schedule": {
+      "slug": "study-schedule",
+      "name": "מערכת שעות ימי לימוד עדכנית המפרטת את מספר הימים בהם יגיע הסטודנט למוסד הלימודי"
+    },
+    "study-approval": {
+      "slug": "study-approval",
+      "name": "אישור לימודים מהמוסד הלימודי, חתום על ידי מזכירות המוסד המעיד על כך שהמבקש הוא תלמיד מן המניין במוסד"
+    },
+    "volunteer-approval": {
+      "slug": "volunteer-approval",
+      "name": "אישור ראש מחלקת מתנדבים במשטרה, ראש מתנזו בים מדא זקא איחוד הצלה / כיבוי אש"
+    },
+    "form-1220": {
+      "slug": "form-1220",
+      "name": "טופס 1220 ובין זיווח של בעל הקרקע לרשות המיסים בצירוף חותמת של רשות המיסים. (למען הבר אגודות שיתופיות,קיבוצים וכו..)",
+      "variants": ["טופס 1220 - ובו דיווח של בעל הקרקע לרשות המיסים בצירוף חותמת של רשות המיסים (למעט חבר באגודות שיתופיות, קיבוצים וכו\")"]
+    },
+    "municipal-recommendation": {
+      "slug": "municipal-recommendation",
+      "name": "המלצה מאת קב״ט הרשות המקומית וקב״ט המועצות האזוריות, מצורף טופס",
+      "variants": ["המלצה מאת קב\"ט הרשות המקומית וקב\"ט המועצות האזוריות"]
+    },
+    "coop-membership": {
+      "slug": "coop-membership",
+      "name": "אישור על חברות באגודה שיתופית חקלאית"
+    },
+    "coop-registrar-approval": {
+      "slug": "coop-registrar-approval", 
+      "name": "אישור של רשם האגודות השיתופיות החקלאיות"
+    },
+    "joint-declaration-coop": {
+      "slug": "joint-declaration-coop",
+      "name": "תצהיר משותף של מורשה החתימה באגודה השיתופית והמבקש",
+      "variants": ["תצהיר משותף של המעסיק והמבקש"]
+    },
+    "farmer-coop-declaration": {
+      "slug": "farmer-coop-declaration",
+      "name": "תצהיר חקלאי החבר באגודה שיתופית"
+    },
+    "municipal-residence": {
+      "slug": "municipal-residence",
+      "name": "אישור מאת הרשות המוניציפלית על תושבות ביישוב או לחילופין אישור על חברות באגודה שיתופית"
+    },
+    "farmer-declaration": {
+      "slug": "farmer-declaration",
+      "name": "תצהיר חקלאי עצמאי"
+    },
+    "farmer-first-degree": {
+      "slug": "farmer-first-degree",
+      "name": "תצהיר חקלאי מקרבה ראשונה במידה וחבר באגודה החקלאית במקום טופס 1220 ותעודת עוסק - תצהיר חקלאי החבר באגודה שיתופית"
+    },
+    "security-course": {
+      "slug": "security-course",
+      "name": "תעודה על מעבר קורס מאבטחים אחיד מאת משרד הביטחון"
+    },
+    "employment-approval": {
+      "slug": "employment-approval",
+      "name": "אישור מהגוף הרלוונטי על העסקת המבקש בהווה/עבר"
+    },
+    "oz-unit-certificate": {
+      "slug": "oz-unit-certificate",
+      "name": "במידה והיה ביחידת עוז בכנסת ישראל: לצרף תעודת מעבר קורס"
+    },
+    "security-manager-certificate": {
+      "slug": "security-manager-certificate",
+      "name": "תעודת ממונה ביטחון בתוקף או תעודת מנהל אבטחה בתוקף"
+    },
+    "police-approval": {
+      "slug": "police-approval",
+      "name": "אישור של ראש חטיבת האבטחה במשטרת ישראל או מי שהוסמך על ידו לעניין זה, לפיו הגוף שבו משמש המבקש כממונה ביטחון או מנהל אבטחה אושר על ידי המשטרה לצורך קבלת כלי ירייה"
+    }
+  },
+  "formTypes": [
+    {
+      "label": "מגורים באיזור זכאי",
+      "slug": "זכאי-מגורים",
+      "fields": [
+        {"fieldSlug": "health-declaration", "number": 1},
+        {"fieldSlug": "id-copy-open", "number": 2},
+        {"fieldSlug": "residence-approval", "number": 3},
+        {"fieldSlug": "residence-declaration", "number": 4},
+        {"fieldSlug": "arnona-receipt", "number": 5},
+        {
+          "fieldSlug": "mail-documents-section", 
+          "number": 6, 
+          "sectionTitle": "על מנת להוכיח מגורים בכתובת אנא צרף שלושה מכתבים:", 
+          "isSection": true,
+          "sectionType": "mail-documents",
+          "requiredCount": 3,
+          "options": [
+            {"slug": "electricity-bill", "label": "חשבון החשמל"},
+            {"slug": "water-bill", "label": "חשבון מים"},
+            {"slug": "phone-bill", "label": "חשבון טלפון"},
+            {"slug": "credit-company-letter", "label": "מכתב מחברת אשראי"},
+            {"slug": "bank-letter", "label": "מכתב מהבנק"},
+            {"slug": "other-mail", "label": "אחר"}
+          ]
+        }
+      ]
+    },
+    {
+      "label": "צבא- דרגה",
+      "slug": "צבא-דרגה",
+      "fields": [
+        {"fieldSlug": "health-declaration", "number": 1},
+        {"fieldSlug": "id-copy-open", "number": 2},
+        {"fieldSlug": "form-830", "number": 3},
+        {"fieldSlug": "form-807", "number": 4},
+        {"fieldSlug": "rank-approval", "number": 5}
+      ]
+    },
+    {
+      "label": "צבא- לוחם",
+      "slug": "צבא-לוחם",
+      "fields": [
+        {"fieldSlug": "health-declaration", "number": 1},
+        {"fieldSlug": "id-copy-open", "number": 2},
+        {"fieldSlug": "form-830", "number": 3},
+        {"fieldSlug": "fighter-certificate", "number": 4}
+      ]
+    },
+    {
+      "label": "עבודה באיזור זכאי שכיר",
+      "slug": "איזור-עבודה-שכיר",
+      "fields": [
+        {"fieldSlug": "health-declaration", "number": 1},
+        {"fieldSlug": "id-copy-open", "number": 2},
+        {"fieldSlug": "eligible-area-work-docs", "number": 3},
+        {"fieldSlug": "monthly-docs", "number": 4},
+        {"fieldSlug": "occupation-letter", "number": 5},
+        {"fieldSlug": "driving-license", "number": 6},
+        {"fieldSlug": "salary-slips", "number": 7},
+        {"fieldSlug": "employer-approval", "number": 8}
+      ]
+    },
+    {
+      "label": "עבודה באיזור זכאי עצמאי",
+      "slug": "איזור-עבודה-עצמאי",
+      "fields": [
+        {"fieldSlug": "health-declaration", "number": 1},
+        {"fieldSlug": "occupation-letter", "number": 2},
+        {"fieldSlug": "invoices-quarterly", "number": 3},
+        {"fieldSlug": "work-arrival-declaration", "number": 4},
+        {"fieldSlug": "business-license", "number": 5},
+        {"fieldSlug": "driving-license", "number": 6}
+      ]
+    },
+    {
+      "label": "תלמיד/סטודנט ביישוב זכאי",
+      "slug": "איזור-לימודים",
+      "fields": [
+        {"fieldSlug": "student-declaration", "number": 1},
+        {"fieldSlug": "study-schedule", "number": 2},
+        {"fieldSlug": "study-approval", "number": 3}
+      ]
+    },
+    {
+      "label": "מתנדב",
+      "slug": "מתנדב",
+      "fields": [
+        {"fieldSlug": "id-copy-open", "number": 1},
+        {"fieldSlug": "health-declaration", "number": 2},
+        {"fieldSlug": "volunteer-approval", "number": 3}
+      ]
+    },
+    {
+      "label": "חקלאי-עצמאי",
+      "slug": "חקלאי-עצמאי",
+      "fields": [
+        {"fieldSlug": "id-copy-open", "number": 1},
+        {"fieldSlug": "health-declaration", "number": 2},
+        {"fieldSlug": "form-1220", "number": 3},
+        {"fieldSlug": "municipal-recommendation", "number": 4},
+        {"fieldSlug": "business-license", "number": 5},
+        {"fieldSlug": "coop-membership", "number": 6},
+        {"fieldSlug": "coop-registrar-approval", "number": 7},
+        {"fieldSlug": "joint-declaration-coop", "number": 8},
+        {"fieldSlug": "farmer-coop-declaration", "number": 9},
+        {"fieldSlug": "municipal-residence", "number": 10}
+      ]
+    },
+    {
+      "label": "חקלאי-שכיר",
+      "slug": "חקלאי-שכיר",
+      "fields": [
+        {"fieldSlug": "id-copy-open", "number": 1},
+        {"fieldSlug": "health-declaration", "number": 2},
+        {"fieldSlug": "form-1220", "number": 3},
+        {"fieldSlug": "joint-declaration-coop", "number": 4},
+        {"fieldSlug": "salary-slips", "number": 5},
+        {"fieldSlug": "occupation-letter", "number": 6}
+      ]
+    },
+    {
+      "label": "חקלאי דרגה ראשונה",
+      "slug": "חקלאי-דרגה-ראשונה",
+      "fields": [
+        {"fieldSlug": "id-copy-open", "number": 1},
+        {"fieldSlug": "health-declaration", "number": 2},
+        {"fieldSlug": "form-1220", "number": 3},
+        {"fieldSlug": "municipal-recommendation", "number": 4},
+        {"fieldSlug": "farmer-declaration", "number": 5},
+        {"fieldSlug": "business-license", "number": 6},
+        {"fieldSlug": "farmer-first-degree", "number": 7}
+      ]
+    },
+    {
+      "label": "זכאות מאבטח",
+      "slug": "מאבטח",
+      "fields": [
+        {"fieldSlug": "id-copy-open", "number": 1},
+        {"fieldSlug": "health-declaration", "number": 2},
+        {"fieldSlug": "security-course", "number": 3},
+        {"fieldSlug": "employment-approval", "number": 4},
+        {"fieldSlug": "oz-unit-certificate", "number": 5}
+      ]
+    },
+    {
+      "label": "ממונה ביטחון או מנהל אבטחה",
+      "slug": "מנהל-ביטחון",
+      "fields": [
+        {"fieldSlug": "id-copy-open", "number": 1},
+        {"fieldSlug": "health-declaration", "number": 2},
+        {"fieldSlug": "security-manager-certificate", "number": 3},
+        {"fieldSlug": "police-approval", "number": 4}
+      ]
+    }
+  ]
+}

@@ -1,36 +1,144 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Customer Form Application - טופס לקוח
+
+A Next.js application for customer document uploads with Hebrew support.
+
+## Features
+
+- **Customer-specific forms** using phone number URL parameter
+- **Dropdown selection** for form types (12 different types with specific fields)
+- **File upload functionality** with drag-and-drop support
+- **Visual indicators** (✓) for uploaded files
+- **File replacement** capability
+- **Hebrew RTL support**
+- **Modern responsive UI** with Tailwind CSS
 
 ## Getting Started
 
-First, run the development server:
-
+1. Install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Run the development server:
+```bash
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Usage
 
-## Learn More
+### Access customer-specific form:
+```
+http://localhost:3000?phone=050-1234567
+```
 
-To learn more about Next.js, take a look at the following resources:
+### Form Types and Fields:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**מגורים באיזור זכאי:**
+1. תצהיר בריאות
+2. ת.ז סטף פתוח
+3. טופס 830 (אישור צבאי)
+4. טופס 807
+5. אישור דרגה
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**צבא- דרגה:**
+1. תצהיר בריאות
+2. ת.ז סטף פתוח
+3. טופס 830 (אישור צבאי)
+4. תעודת לוחם
 
-## Deploy on Vercel
+**צבא- לוחם:**
+1. תצהיר בריאות
+2. ת.ז סטף פתוח
+3. טופס 830 (אישור צבאי)
+4. תעודת לוחם
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**עבודה באיזור זכאי שכיר:**
+1. הצהרת בריאות
+2. צילום ת.ז סטף פתוח
+3. עובד באיזור זכאי - שמיע למקומות זכאים שמתנגים צריך לצרף בין 10 ל 12 תעודות משלוח/חשבוניות/קבלות/חוזה עבודה על עבודה במקומות זכאים
+4. עבור כל חודש- 3 חודשים קודמים לבקשה
+5. מכתב שמפרט על עיסוקו
+6. רישיון נהיגה בתוקף, רישיון רכב
+7. שלושה תלושי משכורת (עדכנים)
+8. אישור מעסיק + תצהיר מעסיק לעבודה ישוב זכאי
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**עבודה באיזור זכאי עצמאי:**
+1. הצהרת בריאות
+2. מכתב שמפרט על עיסוקו
+3. במידה ומטווב בישובים זכאים
+4. חשבוניות- 3 חשבוניות בשבוע לפחות, 3 חודשים קודמים לבקשה
+5. תצהיר הגעה ליישוב עבודה זכאי חתום על ידי עד
+6. תעודת עוסק מורשה/פטור/חברה בע״מ בתוקף
+7. רישיון נהיגה בתוקף
+8. רישיון רכב
+
+**תלמיד/סטודנט ביישוב זכאי:**
+1. תצהיר ואישור תלמיד/סטודנט אשר לומד ביישוב זכאי
+2. מערכת שעות ימי לימוד עדכנית המפרטת את מספר הימים בהם יגיע הסטודנט למוסד הלימודי
+3. אישור לימודים מהמוסד הלימודי, חתום על ידי מזכירות המוסד המעיד על כך שהמבקש הוא תלמיד מן המניין במוסד
+
+**מתנדב:**
+1. צילום תעודת זהות עם ספח פתוח - בהנמונה אחידה
+2. הצהרת בריאות
+3. אישור ראש מחלקת מתנדבים במשטרה, ראש מתנזו בים מדא זקא איחוד הצלה / כיבוי אש
+
+**חקלאי-עצמאי:**
+1. צילום תעודת זהות עם ספח פתוח - בהנמונה אחידה
+2. הצהרת בריאות
+3. טופס 1220 ובין זיווח של בעל הקרקע לרשות המיסים בצירוף חותמת של רשות המיסים. (למען הבר אגודות שיתופיות,קיבוצים וכו..)
+4. המלצה מאת קב״ט הרשות המקומית וקב״ט המועצות האזוריות, מצורף טופס
+5. תעודת עוסק
+6. אישור על חברות באגודה שיתופית חקלאית
+7. אישור של רשם האגודות השיתופיות החקלאיות
+8. תצהיר משותף של מורשה החתימה באגודה השיתופית והמבקש
+9. תצהיר חקלאי החבר באגודה שיתופית
+10. אישור מאת הרשות המוניציפלית על תושבות ביישוב או לחילופין אישור על חברות באגודה שיתופית
+
+**חקלאי-שכיר:**
+1. צילום תעודת זהות עם ספח פתוח - בתמונה אחידה
+2. הצהרת בריאות
+3. טופס 1220 - ובו דיווח של בעל הקרקע לרשות המיסים בצירוף חותמת של רשות המיסים (למעט חבר באגודות שיתופיות, קיבוצים וכו")
+4. תצהיר משותף של המעסיק והמבקש
+5. תלושי שכר
+6. מכתב שמפרט על העיסוק מטעם המעסיק
+
+**חקלאי דרגה ראשונה:**
+1. צילום תעודת זהות עם ספח פתוח - בתמונה אחידה
+2. הצהרת בריאות חתומה על ידי רופא משפחה
+3. טופס 1220 - ובו דיווח של בעל הקרקע לרשות המיסים בצירוף חותמת של רשות המיסים (למעט חבר באגודות שיתופיות, קיבוצים וכו")
+4. המלצה מאת קב״ט הרשות המקומית וקב״ט המועצות האזוריות
+5. תצהיר חקלאי עצמאי
+6. תעודת עוסק
+7. תצהיר חקלאי מקרבה ראשונה במידה וחבר באגודה החקלאית במקום טופס 1220 ותעודת עוסק - תצהיר חקלאי החבר באגודה שיתופית
+
+**זכאות מאבטח:**
+1. צילום תעודת זהות עם ספח פתוח - בתמונה אחידה
+2. הצהרת בריאות
+3. תעודה על מעבר קורס מאבטחים אחיד מאת משרד הביטחון
+4. אישור מהגוף הרלוונטי על העסקת המבקש בהווה/עבר
+5. במידה והיה ביחידת עוז בכנסת ישראל: לצרף תעודת מעבר קורס
+
+**ממונה ביטחון או מנהל אבטחה:**
+1. צילום תעודת זהות עם ספח פתוח - בתמונה אחידה
+2. הצהרת בריאות
+3. תעודת ממונה ביטחון בתוקף או תעודת מנהל אבטחה בתוקף
+4. אישור של ראש חטיבת האבטחה במשטרת ישראל או מי שהוסמך על ידו לעניין זה, לפיו הגוף שבו משמש המבקש כממונה ביטחון או מנהל אבטחה אושר על ידי המשטרה לצורך קבלת כלי ירייה
+
+### File Upload:
+- Drag and drop files into upload areas
+- Click to browse and select files
+- Supported formats: PDF, JPG, PNG, DOC, DOCX
+- Files show ✓ indicator when uploaded
+- Replace files by uploading new ones
+
+### Data Persistence:
+Customer data is saved to localStorage using the phone number as a unique identifier.
+
+## Technologies Used
+
+- **Next.js 14** - React framework with App Router
+- **TypeScript** - Type safety
+- **Tailwind CSS** - Styling
+- **Hebrew RTL Support** - Right-to-left text layout
