@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       message_content: message,
       sent_successfully: result.success,
       error_message: result.success ? undefined : result.error,
-      whatsapp_message_id: result.data?.idMessage
+      whatsapp_message_id: result.data && typeof result.data === 'object' && 'idMessage' in result.data ? String(result.data.idMessage) : undefined
     })
 
     if (result.success) {

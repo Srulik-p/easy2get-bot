@@ -2,64 +2,198 @@
 
 import { useState, useEffect } from 'react'
 import { SupabaseService } from '@/lib/supabase-service'
-import { CustomerSubmission } from '@/lib/supabase'
+import { CustomerSubmission, Customer, CustomerStatus } from '@/lib/supabase'
 import Link from 'next/link'
 import NewCustomerLinkModal from './NewCustomerLinkModal'
 import formFieldsData from '@/data/form-fields.json'
 
 interface CustomerGroup {
   phoneNumber: string
+  customer?: Customer
   submissions: CustomerSubmission[]
 }
 
 export default function AdminPanel() {
   const [submissions, setSubmissions] = useState<CustomerSubmission[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [searchPhone, setSearchPhone] = useState('')
   const [isNewLinkModalOpen, setIsNewLinkModalOpen] = useState(false)
   const [sendingMessage, setSendingMessage] = useState(false)
 
   useEffect(() => {
-    loadSubmissions()
+    loadData()
   }, [])
 
-  const loadSubmissions = async () => {
+  const loadData = async () => {
     setLoading(true)
-    const data = await SupabaseService.getAllSubmissions()
-    setSubmissions(data)
+    const [submissionsData, customersData] = await Promise.all([
+      SupabaseService.getAllSubmissions(),
+      SupabaseService.getAllCustomers()
+    ])
+    setSubmissions(submissionsData)
+    setCustomers(customersData)
     setLoading(false)
   }
 
-  // Group submissions by phone number
-  const customerGroups: CustomerGroup[] = submissions.reduce((groups: CustomerGroup[], submission) => {
-    const existingGroup = groups.find(g => g.phoneNumber === submission.phone_number)
-    if (existingGroup) {
-      existingGroup.submissions.push(submission)
-    } else {
+  // Create customer groups by merging customers and submissions
+  const customerGroups: CustomerGroup[] = (() => {
+    const groups: CustomerGroup[] = []
+    
+    // First, add all customers (including those without submissions)
+    customers.forEach(customer => {
       groups.push({
-        phoneNumber: submission.phone_number,
-        submissions: [submission]
+        phoneNumber: customer.phone_number,
+        customer: customer,
+        submissions: []
       })
-    }
+    })
+    
+    // Then, add submissions to existing groups or create new ones
+    submissions.forEach(submission => {
+      let existingGroup = groups.find(g => g.phoneNumber === submission.phone_number)
+      if (existingGroup) {
+        existingGroup.submissions.push(submission)
+      } else {
+        // Customer doesn't exist in customers table, create a group with just submissions
+        groups.push({
+          phoneNumber: submission.phone_number,
+          submissions: [submission]
+        })
+      }
+    })
+    
     return groups
-  }, [])
+  })()
 
   const filteredCustomerGroups = customerGroups.filter(group =>
     group.phoneNumber.includes(searchPhone)
   )
 
-  const handleSendNewCustomerLink = async (phoneNumber: string, formType: string, message: string) => {
+  // Helper function to format phone number from +972XXXXXXXXX to 05X-XXX-XXXX
+  const formatPhoneNumber = (phoneNumber: string): string => {
+    // Remove +972 prefix if present
+    let cleanPhone = phoneNumber.replace(/^\+972/, '')
+    // Remove any non-digits
+    cleanPhone = cleanPhone.replace(/\D/g, '')
+    
+    // Add leading 0 if not present
+    if (!cleanPhone.startsWith('0')) {
+      cleanPhone = '0' + cleanPhone
+    }
+    
+    // Format as 05X-XXX-XXXX
+    if (cleanPhone.length === 10) {
+      return `${cleanPhone.slice(0, 3)}-${cleanPhone.slice(3, 6)}-${cleanPhone.slice(6)}`
+    }
+    
+    // Fallback to original if formatting fails
+    return phoneNumber
+  }
+
+  // Helper function to get customer status label in Hebrew
+  const getCustomerStatusLabel = (status: CustomerStatus): string => {
+    const labels = {
+      'new_lead': 'ליד חדש',
+      'qualified_lead': 'ליד מוכשר',
+      'agreement_signed': 'הסכם נחתם',
+      'ready_for_apply': 'מוכן להגשה',
+      'applied': 'הוגש',
+      'application_approved': 'בקשה אושרה',
+      'application_declined': 'בקשה נדחתה'
+    }
+    return labels[status] || status
+  }
+
+  // Helper function to get customer criterion label in Hebrew  
+  const getCustomerCriterionLabel = (criterion: string | null | undefined): string => {
+    if (!criterion) return 'לא נבחר'
+    
+    const formType = formFieldsData.formTypes.find(ft => ft.slug === criterion)
+    return formType?.label || criterion
+  }
+
+  // Helper function to get customer status color
+  const getCustomerStatusColor = (status: CustomerStatus): string => {
+    const colors = {
+      'new_lead': 'bg-gray-100 text-gray-800',
+      'qualified_lead': 'bg-blue-100 text-blue-800',
+      'agreement_signed': 'bg-yellow-100 text-yellow-800',
+      'ready_for_apply': 'bg-orange-100 text-orange-800',
+      'applied': 'bg-purple-100 text-purple-800',
+      'application_approved': 'bg-green-100 text-green-800',
+      'application_declined': 'bg-red-100 text-red-800'
+    }
+    return colors[status] || 'bg-gray-100 text-gray-800'
+  }
+
+  const handleSendNewCustomerLink = async (phoneNumber: string, formType: string, message: string, customerName?: string) => {
     setSendingMessage(true)
+    let customerId: string | undefined = undefined
+    
+    // Convert phone number to +972 format for consistency
+    let formattedPhone = phoneNumber.trim()
+    if (!formattedPhone.startsWith('+972') && !formattedPhone.startsWith('972')) {
+      const cleanPhone = formattedPhone.replace(/\D/g, '') // Remove all non-digits
+      formattedPhone = cleanPhone.startsWith('0') 
+        ? `+972${cleanPhone.substring(1)}` 
+        : `+972${cleanPhone}`
+    } else if (formattedPhone.startsWith('972')) {
+      formattedPhone = `+${formattedPhone}`
+    }
+    
     try {
+      // First, create or update the customer in the database
+      if (customerName) {
+        try {
+          // Parse first and last name from full name
+          const nameParts = customerName.trim().split(' ')
+          const firstName = nameParts[0] || undefined
+          const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : undefined
+
+          // Create or update customer in customers table
+          const existingCustomer = await SupabaseService.getCustomerByPhone(formattedPhone)
+          if (!existingCustomer) {
+            // Create new customer with name and criterion
+            const newCustomer = await SupabaseService.createCustomer({
+              phone_number: formattedPhone,
+              name: firstName,
+              family_name: lastName,
+              criterion: formType as any,
+              status: 'agreement_signed'
+            })
+            customerId = newCustomer?.id
+            console.log('Created new customer:', { phone: formattedPhone, name: firstName, family_name: lastName, criterion: formType })
+          } else {
+            customerId = existingCustomer.id
+            if (!existingCustomer.name && firstName) {
+              // Update existing customer with name if they don't have one
+              await SupabaseService.updateCustomer(existingCustomer.id, {
+                name: firstName,
+                family_name: lastName,
+                criterion: existingCustomer.criterion || (formType as any)
+              })
+              console.log('Updated existing customer with name:', { id: existingCustomer.id, name: firstName, family_name: lastName })
+            }
+          }
+        } catch (error) {
+          console.error('Error creating/updating customer:', error)
+          // Don't fail the whole process if customer creation fails
+        }
+      }
+
+      // Send WhatsApp message using formatted phone number
       const response = await fetch('/api/whatsapp/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          phoneNumber,
+          phoneNumber: formattedPhone, // Use formatted phone with +972
           message,
           formType, // Pass form type to track when form is sent
+          customerName, // Pass customer name for better tracking
+          customerId, // Pass customer ID for message logging
         }),
       })
 
@@ -67,8 +201,8 @@ export default function AdminPanel() {
       
       if (result.success) {
         alert('הודעה נשלחה בהצלחה! ✅')
-        // Optionally refresh the customer list
-        await loadSubmissions()
+        // Refresh the customer list
+        await loadData()
       } else {
         alert(`שגיאה בשליחת ההודעה: ${result.error}`)
       }
@@ -139,19 +273,22 @@ export default function AdminPanel() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    מספר טלפון
+                    שם מלא
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    מספר טפסים
+                    טלפון
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    סוגי טפסים
+                    תבחין
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    סטטוס
+                    סטטוס לקוח
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    עדכון אחרון
+                    טפסים
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    סטטוס טפסים
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     פעולות
@@ -161,24 +298,72 @@ export default function AdminPanel() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredCustomerGroups.map((customerGroup) => (
                   <tr key={customerGroup.phoneNumber} className="hover:bg-gray-50">
+                    {/* Full Name */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {customerGroup.phoneNumber}
+                        {customerGroup.customer ? 
+                          [customerGroup.customer.name, customerGroup.customer.family_name]
+                            .filter(Boolean).join(' ') || 'לא צוין'
+                          : 'לא צוין'
+                        }
                       </div>
                     </td>
+                    
+                    {/* Phone (formatted) */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {customerGroup.submissions.length}
+                        {formatPhoneNumber(customerGroup.phoneNumber)}
                       </div>
                     </td>
+                    
+                    {/* Criterion */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-700">
+                        {customerGroup.customer 
+                          ? getCustomerCriterionLabel(customerGroup.customer.criterion)
+                          : 'לא נבחר'
+                        }
+                      </div>
+                    </td>
+                    
+                    {/* Customer Status */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {customerGroup.customer ? (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCustomerStatusColor(customerGroup.customer.status)}`}>
+                          {getCustomerStatusLabel(customerGroup.customer.status)}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          לא ידוע
+                        </span>
+                      )}
+                    </td>
+                    
+                    {/* Forms */}
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-700 max-w-xs">
-                        {customerGroup.submissions.map(sub => sub.form_type_label).join(', ')}
+                      <div className="text-sm text-gray-900">
+                        <div className="font-medium">{customerGroup.submissions.length} טפסים</div>
+                        {customerGroup.submissions.length > 0 && (
+                          <div className="text-xs text-gray-500 max-w-xs truncate" title={customerGroup.submissions.map(sub => sub.form_type_label).join(', ')}>
+                            {customerGroup.submissions.map(sub => sub.form_type_label).join(', ')}
+                          </div>
+                        )}
                       </div>
                     </td>
+                    
+                    {/* Form Status */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-wrap gap-1">
                         {(() => {
+                          // Handle customers without any submissions
+                          if (customerGroup.submissions.length === 0) {
+                            return (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                אין טפסים
+                              </span>
+                            )
+                          }
+
                           const statusCounts = customerGroup.submissions.reduce((acc, sub) => {
                             // Calculate automatic status based on form progress
                             const submittedCount = sub.submitted_fields.length
@@ -216,9 +401,8 @@ export default function AdminPanel() {
                         })()}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {new Date(Math.max(...customerGroup.submissions.map(sub => new Date(sub.updated_at || '').getTime()))).toLocaleDateString('he-IL')}
-                    </td>
+                    
+                    {/* Actions */}
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <Link
                         href={`/admin/customers/${encodeURIComponent(customerGroup.phoneNumber)}`}

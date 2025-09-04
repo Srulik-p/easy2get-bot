@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { SupabaseService } from '@/lib/supabase-service'
-import { CustomerSubmission, UploadedFile, MessageLog } from '@/lib/supabase'
+import { Customer, CustomerSubmission, UploadedFile, MessageLog, CustomerStatus, CustomerCriterion, AuthToken } from '@/lib/supabase'
 import formFieldsData from '@/data/form-fields.json'
 import Link from 'next/link'
 import CustomFileInput from '@/components/CustomFileInput'
@@ -22,6 +22,7 @@ export default function CustomerPage() {
   const params = useParams()
   const phoneNumber = decodeURIComponent(params.phone as string)
 
+  const [customer, setCustomer] = useState<Customer | null>(null)
   const [submissions, setSubmissions] = useState<CustomerSubmission[]>([])
   const [selectedFormType, setSelectedFormType] = useState<string>('')
   const [customerFiles, setCustomerFiles] = useState<UploadedFile[]>([])
@@ -29,9 +30,13 @@ export default function CustomerPage() {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false)
+  const [isCustomMessageModalOpen, setIsCustomMessageModalOpen] = useState(false)
   const [sendingMessage, setSendingMessage] = useState(false)
   const [editingDetails, setEditingDetails] = useState(false)
+  const [authTokens, setAuthTokens] = useState<AuthToken[]>([])
   const [customerDetails, setCustomerDetails] = useState({
+    status: 'new_lead' as CustomerStatus,
+    criterion: null as CustomerCriterion | null,
     name: '',
     family_name: '',
     id_number: '',
@@ -45,13 +50,34 @@ export default function CustomerPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      setLoading(true)
+    setLoading(true)
       
-      // Get all submissions for this phone number
-      const allSubmissions = await SupabaseService.getAllSubmissions()
-      const customerSubmissions = allSubmissions.filter(sub => sub.phone_number === phoneNumber)
-      setSubmissions(customerSubmissions)
+      // Load customer from customers table
+      const customerData = await SupabaseService.getCustomerByPhone(phoneNumber)
+      setCustomer(customerData)
       
+      // Set customer details for editing form
+      if (customerData) {
+        setCustomerDetails({
+          status: customerData.status || 'new_lead',
+          criterion: customerData.criterion || null,
+          name: customerData.name || '',
+          family_name: customerData.family_name || '',
+          id_number: customerData.id_number?.toString() || '',
+          birth_date: customerData.birth_date || '',
+          address: {
+            street: customerData.address?.street || '',
+            city: customerData.address?.city || '',
+            zip_code: customerData.address?.zip_code || ''
+          }
+        })
+      }
+    
+    // Get all submissions for this phone number
+    const allSubmissions = await SupabaseService.getAllSubmissions()
+    const customerSubmissions = allSubmissions.filter(sub => sub.phone_number === phoneNumber)
+    setSubmissions(customerSubmissions)
+    
       // Load all files for this customer
       const allFiles = await SupabaseService.getAllFilesByPhone(phoneNumber)
       setCustomerFiles(allFiles)
@@ -65,22 +91,6 @@ export default function CustomerPage() {
         setMessageHistory([]) // Fallback to empty array
       }
       
-      // Load customer details from any submission that has them
-      const submissionWithDetails = customerSubmissions.find(s => s.name || s.family_name || s.id_number || s.birth_date || s.address)
-      if (submissionWithDetails) {
-        setCustomerDetails({
-          name: submissionWithDetails.name || '',
-          family_name: submissionWithDetails.family_name || '',
-          id_number: submissionWithDetails.id_number?.toString() || '',
-          birth_date: submissionWithDetails.birth_date || '',
-          address: {
-            street: submissionWithDetails.address?.street || '',
-            city: submissionWithDetails.address?.city || '',
-            zip_code: submissionWithDetails.address?.zip_code || ''
-          }
-        })
-      }
-      
       // Smart form selection: auto-select if only one form, otherwise let user choose
       if (customerSubmissions.length === 1) {
         // Only one form - auto select it
@@ -91,9 +101,18 @@ export default function CustomerPage() {
         setSelectedFormType('')
       }
       
-      setLoading(false)
+      // Load authorization tokens for this customer
+      try {
+        const tokens = await SupabaseService.getTokensByPhone(phoneNumber)
+        setAuthTokens(tokens)
+      } catch (error) {
+        console.warn('Failed to load authorization tokens:', error)
+        setAuthTokens([])
     }
     
+    setLoading(false)
+  }
+
     loadData()
   }, [phoneNumber])
 
@@ -124,6 +143,41 @@ export default function CustomerPage() {
       // Reload all files for this customer
       const allFiles = await SupabaseService.getAllFilesByPhone(phoneNumber)
       setCustomerFiles(allFiles)
+      
+      // Find the current submission for this form type
+      const currentSubmission = submissions.find(sub => sub.form_type === selectedFormType)
+      console.log('Admin file upload - currentSubmission:', currentSubmission)
+      console.log('Admin file upload - fieldSlug:', fieldSlug)
+      
+      // Update submitted fields to mark this field as submitted
+      if (currentSubmission?.id) {
+        const currentFields = currentSubmission.submitted_fields || []
+        console.log('Admin file upload - currentFields:', currentFields)
+        
+        if (!currentFields.includes(fieldSlug)) {
+          const updatedFields = [...currentFields, fieldSlug]
+          console.log('Admin file upload - updating with fields:', updatedFields)
+          
+          const updateSuccess = await SupabaseService.updateSubmittedFields(currentSubmission.id, updatedFields)
+          console.log('Admin file upload - update success:', updateSuccess)
+          
+          if (updateSuccess) {
+            // Update local state
+            setSubmissions(prevSubmissions => 
+              prevSubmissions.map(sub => 
+                sub.id === currentSubmission.id 
+                  ? { ...sub, submitted_fields: updatedFields }
+                  : sub
+              )
+            )
+            console.log('Admin file upload - local state updated')
+          }
+        } else {
+          console.log('Admin file upload - field already in submitted_fields')
+        }
+      } else {
+        console.log('Admin file upload - no currentSubmission found')
+      }
     }
     setUploading(false)
     
@@ -134,11 +188,11 @@ export default function CustomerPage() {
   const getFileUrl = async (filePath: string) => {
     try {
       console.log('Admin panel requesting file URL for:', filePath)
-      const url = await SupabaseService.getFileUrl(filePath)
+    const url = await SupabaseService.getFileUrl(filePath)
       console.log('Received URL:', url)
       
-      if (url) {
-        window.open(url, '_blank')
+    if (url) {
+      window.open(url, '_blank')
       } else {
         alert('לא ניתן לפתוח את הקובץ כרגע. הקובץ עלול להיות זמינות באחסון.')
       }
@@ -191,9 +245,10 @@ export default function CustomerPage() {
     }
   }
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = async (customMessage?: string) => {
     setSendingMessage(true)
     try {
+      const message = customMessage || 'שלום! איך אפשר לעזור לך?'
       const response = await fetch('/api/whatsapp/send', {
         method: 'POST',
         headers: {
@@ -201,7 +256,7 @@ export default function CustomerPage() {
         },
         body: JSON.stringify({
           phoneNumber,
-          message: 'שלום! איך אפשר לעזור לך?',
+          message,
         }),
       })
 
@@ -223,11 +278,53 @@ export default function CustomerPage() {
     }
   }
 
-  const getAutomaticStatus = (submission: CustomerSubmission, totalFields: number): 'new' | 'in-progress' | 'completed' => {
-    const submittedCount = submission.submitted_fields.length
+  const getAutomaticStatus = (
+    submission: CustomerSubmission,
+    totalFields: number,
+    submittedCountOverride?: number
+  ): 'new' | 'in-progress' | 'completed' => {
+    const submittedCount = typeof submittedCountOverride === 'number'
+      ? submittedCountOverride
+      : submission.submitted_fields.length
     if (submittedCount === 0) return 'new'
     if (submittedCount === totalFields) return 'completed'
     return 'in-progress'
+  }
+
+  const handleRevokeToken = async (tokenId: string) => {
+    if (!confirm('האם אתה בטוח שברצונך לבטל את האסימון? פעולה זו לא ניתנת לביטול.')) {
+      return
+    }
+
+    try {
+      const success = await SupabaseService.revokeToken(tokenId)
+      if (success) {
+        alert('האסימון בוטל בהצלחה!')
+        // Refresh tokens
+        const tokens = await SupabaseService.getTokensByPhone(phoneNumber)
+        setAuthTokens(tokens)
+      } else {
+        alert('שגיאה בביטול האסימון')
+      }
+    } catch (error) {
+      console.error('Error revoking token:', error)
+      alert('שגיאה בביטול האסימון')
+    }
+  }
+
+  const getTokenStatus = (token: AuthToken): { status: string; color: string; description: string } => {
+    const now = new Date()
+    const expiration = new Date(token.expires_at)
+    const isExpired = now > expiration
+    const isUsed = !token.is_reusable && !!token.used_at
+
+    if (isExpired) {
+      return { status: 'פג תוקף', color: 'text-red-600', description: 'האסימון פג תוקף' }
+    } else if (isUsed) {
+      return { status: 'בשימוש', color: 'text-orange-600', description: 'האסימון נוצל (חד פעמי)' }
+    } else {
+      return { status: 'פעיל', color: 'text-green-600', description: token.is_reusable ? 'זמין לשימוש חוזר' : 'זמין לשימוש חד פעמי' }
+    }
   }
 
   const getMessageTypeLabel = (messageType: MessageLog['message_type']): string => {
@@ -260,37 +357,65 @@ export default function CustomerPage() {
     return colors[messageType] || 'bg-gray-100 text-gray-800'
   }
 
+  const getCustomerStatusLabel = (status: CustomerStatus): string => {
+    const labels = {
+      'new_lead': 'ליד חדש',
+      'qualified_lead': 'ליד מוכשר',
+      'agreement_signed': 'הסכם נחתם',
+      'ready_for_apply': 'מוכן להגשה',
+      'applied': 'הוגש',
+      'application_approved': 'בקשה אושרה',
+      'application_declined': 'בקשה נדחתה'
+    }
+    return labels[status] || status
+  }
+
+  const getCustomerStatusColor = (status: CustomerStatus): string => {
+    const colors = {
+      'new_lead': 'bg-gray-100 text-gray-800',
+      'qualified_lead': 'bg-blue-100 text-blue-800',
+      'agreement_signed': 'bg-yellow-100 text-yellow-800',
+      'ready_for_apply': 'bg-orange-100 text-orange-800',
+      'applied': 'bg-purple-100 text-purple-800',
+      'application_approved': 'bg-green-100 text-green-800',
+      'application_declined': 'bg-red-100 text-red-800'
+    }
+    return colors[status] || 'bg-gray-100 text-gray-800'
+  }
+
+  const getCustomerCriterionLabel = (criterion: CustomerCriterion | null | undefined): string => {
+    if (!criterion) return 'לא נבחר'
+    
+    const formType = formFieldsData.formTypes.find(ft => ft.slug === criterion)
+    return formType?.label || criterion
+  }
+
   const handleSaveCustomerDetails = async () => {
     try {
-      // Update all submissions for this customer with the new details
-      const response = await fetch('/api/customers/update-details', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phoneNumber,
-          details: {
-            name: customerDetails.name || null,
-            family_name: customerDetails.family_name || null,
-            id_number: customerDetails.id_number ? parseInt(customerDetails.id_number) : null,
-            birth_date: customerDetails.birth_date || null,
-            address: Object.values(customerDetails.address).some(v => v) ? customerDetails.address : null
-          }
-        }),
-      })
+      if (!customer) {
+        alert('לא נמצא לקוח לעדכון')
+        return
+      }
 
-      const result = await response.json()
+      // Update customer in customers table
+      const success = await SupabaseService.updateCustomer(customer.id, {
+        status: customerDetails.status,
+        criterion: customerDetails.criterion || undefined,
+        name: customerDetails.name || undefined,
+        family_name: customerDetails.family_name || undefined,
+        id_number: customerDetails.id_number ? parseInt(customerDetails.id_number) : undefined,
+        birth_date: customerDetails.birth_date || undefined,
+        address: Object.values(customerDetails.address).some(v => v) ? customerDetails.address : undefined
+      })
       
-      if (result.success) {
-        // Reload submissions to get updated data
-        const allSubmissions = await SupabaseService.getAllSubmissions()
-        const customerSubmissions = allSubmissions.filter(sub => sub.phone_number === phoneNumber)
-        setSubmissions(customerSubmissions)
+      if (success) {
+        // Reload customer data
+        const updatedCustomer = await SupabaseService.getCustomerByPhone(phoneNumber)
+        setCustomer(updatedCustomer)
         setEditingDetails(false)
         alert('פרטי הלקוח נשמרו בהצלחה! ✅')
       } else {
-        alert(`שגיאה בשמירת הפרטים: ${result.error}`)
+        alert('שגיאה בשמירת פרטי הלקוח')
       }
     } catch (error) {
       console.error('Error saving customer details:', error)
@@ -315,7 +440,14 @@ export default function CustomerPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header with back button */}
         <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
           <h1 className="text-3xl font-bold text-gray-900">פרטי לקוח - {phoneNumber}</h1>
+            {customer && (
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getCustomerStatusColor(customer.status)}`}>
+                {getCustomerStatusLabel(customer.status)}
+              </span>
+            )}
+          </div>
           <Link
             href="/admin"
             className="text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-md transition-colors"
@@ -336,9 +468,10 @@ export default function CustomerPage() {
                 <div className="space-y-3">
                   {submissions.map((submission) => {
                     const totalFields = getFormTypeFields(submission.form_type).filter(f => !f.isSection).length
-                    const submittedFields = submission.submitted_fields.length
+                    const submittedFilesForSubmission = customerFiles.filter(f => f.submission_id === submission.id).length
+                    const submittedFields = submission.submitted_fields.length || submittedFilesForSubmission
                     const isSelected = selectedFormType === submission.form_type
-                    const automaticStatus = getAutomaticStatus(submission, totalFields)
+                    const automaticStatus = getAutomaticStatus(submission, totalFields, submittedFields)
 
                     return (
                       <div
@@ -362,16 +495,16 @@ export default function CustomerPage() {
                             {automaticStatus === 'completed' ? 'הושלם' :
                              automaticStatus === 'in-progress' ? 'בתהליך' : 'חדש'}
                           </span>
-                        </div>
-                        
+                </div>
+
                         <div className="flex justify-between items-center mb-3">
                           <div className="text-sm text-gray-600">
                             📊 {submittedFields}/{totalFields} שדות הוגשו
                           </div>
                           <div className="text-xs text-gray-500">
                             📅 {new Date(submission.updated_at || '').toLocaleDateString('he-IL')}
-                          </div>
-                        </div>
+                  </div>
+                </div>
 
                         {/* Reminder Status */}
                         <div className="text-xs space-y-1 mb-3 p-2 bg-gray-50 rounded">
@@ -440,7 +573,14 @@ export default function CustomerPage() {
                       </div>
                       <div>
                         <div className="font-medium text-gray-800">שדות מולאו</div>
-                        <div className="text-gray-600">{selectedSubmission.submitted_fields.length} / {getFormTypeFields().filter(f => !f.isSection).length}</div>
+                        <div className="text-gray-600">
+                          {(() => {
+                            const fromArray = selectedSubmission.submitted_fields?.length || 0
+                            const fromFiles = customerFiles.filter(f => f.submission_id === selectedSubmission.id).length
+                            const used = fromArray || fromFiles
+                            return `${used} / ${getFormTypeFields().filter(f => !f.isSection).length}`
+                          })()}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -457,7 +597,7 @@ export default function CustomerPage() {
                           f.field_slug === field.fieldSlug && 
                           f.submission_id === selectedSubmission?.id
                         )
-                        const isSubmitted = selectedSubmission.submitted_fields.includes(field.fieldSlug)
+                        const isSubmitted = selectedSubmission.submitted_fields.includes(field.fieldSlug) || !!existingFile
                         
                         return (
                           <div key={field.fieldSlug} className={`p-4 border rounded-lg ${isSubmitted ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}>
@@ -485,22 +625,22 @@ export default function CustomerPage() {
                               <div className="mt-3">
                                 {existingFile && (
                                   <div className="flex justify-between items-center mb-3">
-                                    <div>
+                                <div>
                                       <div className="text-xs text-green-800 font-medium">✅ קובץ הוגש: {existingFile.file_name}</div>
-                                      <div className="text-xs text-gray-600">
-                                        {(existingFile.file_size / 1024).toFixed(1)} KB • {new Date(existingFile.created_at || '').toLocaleDateString('he-IL')}
-                                      </div>
-                                    </div>
-                                    <div className="space-x-2 space-x-reverse">
+                                  <div className="text-xs text-gray-600">
+                                    {(existingFile.file_size / 1024).toFixed(1)} KB • {new Date(existingFile.created_at || '').toLocaleDateString('he-IL')}
+                                  </div>
+                                </div>
+                                <div className="space-x-2 space-x-reverse">
                                     </div>
                                   </div>
                                 )}
-                                <button
+                                  <button
                                   onClick={() => existingFile ? getFileUrl(existingFile.file_path) : alert('הקובץ לא זמין כרגע')}
                                   className="w-full p-3 border-2 border-green-300 bg-green-50 hover:bg-green-100 text-green-800 rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
-                                >
+                                  >
                                   📂 פתח קובץ
-                                </button>
+                                  </button>
                               </div>
                             ) : (
                               <div className="mt-3">
@@ -569,6 +709,39 @@ export default function CustomerPage() {
                   {editingDetails ? (
                     <div className="space-y-3 text-sm">
                       <div>
+                        <label className="block text-gray-700 font-medium mb-1">סטטוס לקוח</label>
+                        <select
+                          value={customerDetails.status}
+                          onChange={(e) => setCustomerDetails({...customerDetails, status: e.target.value as CustomerStatus})}
+                          className="w-full px-2 py-1 border rounded text-sm text-gray-900"
+                          aria-label="בחר סטטוס לקוח"
+                        >
+                          <option value="new_lead">ליד חדש</option>
+                          <option value="qualified_lead">ליד מוכשר</option>
+                          <option value="agreement_signed">הסכם נחתם</option>
+                          <option value="ready_for_apply">מוכן להגשה</option>
+                          <option value="applied">הוגש</option>
+                          <option value="application_approved">בקשה אושרה</option>
+                          <option value="application_declined">בקשה נדחתה</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-gray-700 font-medium mb-1">קריטריון זכאות</label>
+                        <select
+                          value={customerDetails.criterion || ''}
+                          onChange={(e) => setCustomerDetails({...customerDetails, criterion: e.target.value as CustomerCriterion || null})}
+                          className="w-full px-2 py-1 border rounded text-sm text-gray-900"
+                          aria-label="בחר קריטריון זכאות"
+                        >
+                          <option value="">לא נבחר</option>
+                          {formFieldsData.formTypes.map((formType) => (
+                            <option key={formType.slug} value={formType.slug}>
+                              {formType.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
                         <label className="block text-gray-700 font-medium mb-1">שם פרטי</label>
                         <input
                           type="text"
@@ -605,9 +778,11 @@ export default function CustomerPage() {
                           value={customerDetails.birth_date}
                           onChange={(e) => setCustomerDetails({...customerDetails, birth_date: e.target.value})}
                           className="w-full px-2 py-1 border rounded text-sm text-gray-900"
+                          aria-label="תאריך לידה"
+                          placeholder="בחר תאריך לידה"
                         />
                       </div>
-                      <div>
+                  <div>
                         <label className="block text-gray-700 font-medium mb-1">כתובת</label>
                         <input
                           type="text"
@@ -645,26 +820,26 @@ export default function CustomerPage() {
                     </div>
                   ) : (
                     <div className="space-y-2 text-sm text-gray-800">
-                      {submissions.length > 0 && submissions.some(s => s.name || s.family_name || s.id_number || s.birth_date || s.address) ? (
+                      {customer && (customer.name || customer.family_name || customer.id_number || customer.birth_date || customer.address) ? (
                         <>
-                          {submissions.find(s => s.name) && (
-                            <div><strong>שם פרטי:</strong> {submissions.find(s => s.name)?.name}</div>
+                          {customer.name && (
+                            <div><strong>שם פרטי:</strong> {customer.name}</div>
                           )}
-                          {submissions.find(s => s.family_name) && (
-                            <div><strong>שם משפחה:</strong> {submissions.find(s => s.family_name)?.family_name}</div>
+                          {customer.family_name && (
+                            <div><strong>שם משפחה:</strong> {customer.family_name}</div>
                           )}
-                          {submissions.find(s => s.id_number) && (
-                            <div><strong>מספר זהות:</strong> {submissions.find(s => s.id_number)?.id_number}</div>
+                          {customer.id_number && (
+                            <div><strong>מספר זהות:</strong> {customer.id_number}</div>
                           )}
-                          {submissions.find(s => s.birth_date) && (
-                            <div><strong>תאריך לידה:</strong> {new Date(submissions.find(s => s.birth_date)?.birth_date || '').toLocaleDateString('he-IL')}</div>
+                          {customer.birth_date && (
+                            <div><strong>תאריך לידה:</strong> {new Date(customer.birth_date).toLocaleDateString('he-IL')}</div>
                           )}
-                          {submissions.find(s => s.address) && (
+                          {customer.address && (
                             <div className="mt-2">
                               <strong>כתובת:</strong>
                               <div className="mr-2 text-gray-700">
                                 {(() => {
-                                  const address = submissions.find(s => s.address)?.address
+                                  const address = customer.address
                                   if (!address) return null
                                   const parts = []
                                   if (address.street) parts.push(address.street)
@@ -687,9 +862,20 @@ export default function CustomerPage() {
                   <h3 className="font-medium mb-2 text-gray-900">מידע מערכת</h3>
                   <div className="space-y-2 text-sm text-gray-800">
                     <div><strong>טלפון:</strong> {phoneNumber}</div>
+                    {customer && (
+                      <div className="flex items-center gap-2">
+                        <strong>סטטוס:</strong>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCustomerStatusColor(customer.status)}`}>
+                          {getCustomerStatusLabel(customer.status)}
+                        </span>
+                      </div>
+                    )}
+                    {customer && (
+                      <div><strong>תבחין:</strong> {getCustomerCriterionLabel(customer.criterion)}</div>
+                    )}
                     <div><strong>מספר טפסים:</strong> {submissions.length}</div>
-                    <div><strong>תאריך הצטרפות:</strong> {new Date(Math.min(...submissions.map(sub => new Date(sub.created_at || '').getTime()))).toLocaleDateString('he-IL')}</div>
-                    <div><strong>עדכון אחרון:</strong> {new Date(Math.max(...submissions.map(sub => new Date(sub.updated_at || '').getTime()))).toLocaleDateString('he-IL')}</div>
+                    <div><strong>תאריך הצטרפות:</strong> {submissions.length > 0 ? new Date(Math.min(...submissions.map(sub => new Date(sub.created_at || '').getTime()))).toLocaleDateString('he-IL') : 'לא זמין'}</div>
+                    <div><strong>עדכון אחרון:</strong> {submissions.length > 0 ? new Date(Math.max(...submissions.map(sub => new Date(sub.updated_at || '').getTime()))).toLocaleDateString('he-IL') : 'לא זמין'}</div>
                   </div>
                 </div>
 
@@ -698,7 +884,7 @@ export default function CustomerPage() {
                   <h3 className="font-medium mb-2 text-gray-900">פעולות וואטסאפ</h3>
                   <div className="space-y-2">
                     <button 
-                      onClick={handleSendMessage}
+                      onClick={() => setIsCustomMessageModalOpen(true)}
                       disabled={sendingMessage}
                       className={`w-full text-sm px-3 py-2 rounded-md transition-colors ${
                         sendingMessage 
@@ -752,17 +938,17 @@ export default function CustomerPage() {
                                     <div className="text-xs text-gray-600 truncate">{file.file_name}</div>
                                     <div className="text-xs text-gray-500">
                                       {(file.file_size / 1024).toFixed(1)} KB • {new Date(file.created_at || '').toLocaleDateString('he-IL')}
-                                    </div>
-                                  </div>
-                                  <button
-                                    onClick={() => getFileUrl(file.file_path)}
-                                    className="text-blue-600 hover:text-blue-800 text-xs ml-2 bg-blue-50 px-2 py-1 rounded"
-                                  >
-                                    צפה
-                                  </button>
-                                </div>
                               </div>
-                            ))}
+                            </div>
+                            <button
+                              onClick={() => getFileUrl(file.file_path)}
+                                    className="text-blue-600 hover:text-blue-800 text-xs ml-2 bg-blue-50 px-2 py-1 rounded"
+                            >
+                              צפה
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                           </div>
                         </div>
                       )
@@ -774,6 +960,14 @@ export default function CustomerPage() {
                   </div>
                 )}
               </div>
+
+              {/* Authorization Tokens - Hidden per user request */}
+              {/* 
+              <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 className="text-xl font-semibold mb-4 text-gray-900">אסימוני הרשאה ({authTokens.length})</h2>
+                [Previous authorization tokens section hidden]
+              </div>
+              */}
 
               {/* Message History */}
               <div className="bg-white rounded-lg shadow-md p-6">
@@ -825,20 +1019,20 @@ export default function CustomerPage() {
                             <span className="text-red-600 truncate max-w-xs" title={message.error_message}>
                               שגיאה: {message.error_message}
                             </span>
-                          )}
-                        </div>
+                      )}
+                    </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center text-gray-500 py-8">
+                <div className="text-center text-gray-500 py-8">
                     אין הודעות עדיין
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       {/* WhatsApp Modal */}
@@ -848,6 +1042,93 @@ export default function CustomerPage() {
         phoneNumber={phoneNumber}
         onSendLink={handleSendWhatsAppLink}
       />
+
+      {/* Custom Message Modal */}
+      {isCustomMessageModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" dir="rtl">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">שלח הודעה מותאמת</h2>
+                <button
+                  onClick={() => setIsCustomMessageModalOpen(false)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                  disabled={sendingMessage}
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Customer Info */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h3 className="font-medium text-gray-900 mb-2">פרטי לקוח</h3>
+                <p className="text-gray-700">מספר טלפון: {phoneNumber}</p>
+                {customerDetails.name && (
+                  <p className="text-gray-700">שם: {customerDetails.name}</p>
+                )}
+              </div>
+
+              {/* Custom Message Input */}
+              <div className="mb-6">
+                <label className="block text-lg font-semibold text-gray-900 mb-3">
+                  כתוב הודעה מותאמת:
+                </label>
+                <textarea
+                  placeholder="כתוב כאן את ההודעה שלך..."
+                  className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 min-h-[150px]"
+                  disabled={sendingMessage}
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setIsCustomMessageModalOpen(false)}
+                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  disabled={sendingMessage}
+                >
+                  ביטול
+                </button>
+                <button
+                  onClick={async () => {
+                    const textarea = document.querySelector('textarea') as HTMLTextAreaElement
+                    const customMessage = textarea?.value?.trim()
+                    
+                    if (customMessage) {
+                      setSendingMessage(true)
+                      try {
+                        await handleSendMessage(customMessage)
+                        setIsCustomMessageModalOpen(false)
+                        textarea.value = ''
+                      } catch (error) {
+                        console.error('Error sending custom message:', error)
+                      } finally {
+                        setSendingMessage(false)
+                      }
+                    }
+                  }}
+                  disabled={sendingMessage}
+                  className={`px-6 py-3 rounded-lg transition-colors ${
+                    sendingMessage
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-green-600 hover:bg-green-700 text-white'
+                  }`}
+                >
+                  {sendingMessage ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      שולח...
+                    </div>
+                  ) : (
+                    '📱 שלח הודעה'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

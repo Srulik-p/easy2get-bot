@@ -1,4 +1,4 @@
-import { supabase, CustomerSubmission, UploadedFile, MessageLog } from './supabase'
+import { supabase, Customer, CustomerSubmission, UploadedFile, MessageLog, AuthToken } from './supabase'
 
 const isSupabaseConfigured = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -8,6 +8,164 @@ const isSupabaseConfigured = () => {
 
 export class SupabaseService {
   
+  // Customer Management Functions
+
+  // Get or create customer
+  static async getOrCreateCustomer(phoneNumber: string): Promise<Customer | null> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured, returning null')
+      return null
+    }
+    
+    try {
+      // First, try to get existing customer
+      const { data: existing, error: fetchError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('phone_number', phoneNumber)
+        .single()
+
+      if (existing && !fetchError) {
+        return existing
+      }
+
+      // If not found, create new customer
+      const { data, error } = await supabase
+        .from('customers')
+        .insert({
+          phone_number: phoneNumber
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error creating customer:', error)
+        return null
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in getOrCreateCustomer:', error)
+      return null
+    }
+  }
+
+  // Create customer with additional details
+  static async createCustomer(customerData: {
+    phone_number: string;
+    name?: string;
+    family_name?: string;
+    criterion?: string;
+    status?: 'new_lead' | 'qualified_lead' | 'agreement_signed' | 'ready_for_apply' | 'applied' | 'application_approved' | 'application_declined';
+  }): Promise<Customer | null> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured, returning null')
+      return null
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .insert({
+          phone_number: customerData.phone_number,
+          name: customerData.name || null,
+          family_name: customerData.family_name || null,
+          criterion: customerData.criterion || null,
+          status: customerData.status || 'agreement_signed'
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error creating customer:', error)
+        return null
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in createCustomer:', error)
+      return null
+    }
+  }
+
+  // Update customer details
+  static async updateCustomer(customerId: string, details: Partial<Customer>): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured, returning false')
+      return false
+    }
+
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .update({
+          ...details,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', customerId)
+
+      if (error) {
+        console.error('Error updating customer:', error)
+        return false
+      }
+
+      return true
+    } catch (error) {
+      console.error('Error in updateCustomer:', error)
+      return false
+    }
+  }
+
+  // Get all customers
+  static async getAllCustomers(): Promise<Customer[]> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured, returning empty array')
+      return []
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching all customers:', error)
+        return []
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error in getAllCustomers:', error)
+      return []
+    }
+  }
+
+  // Get customer by phone number
+  static async getCustomerByPhone(phoneNumber: string): Promise<Customer | null> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured, returning null')
+      return null
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('phone_number', phoneNumber)
+        .single()
+
+      if (error) {
+        return null
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in getCustomerByPhone:', error)
+      return null
+    }
+  }
+
   // Get or create customer submission
   static async getOrCreateSubmission(phoneNumber: string, formType: string, formTypeLabel: string): Promise<CustomerSubmission | null> {
     if (!isSupabaseConfigured()) {
@@ -18,15 +176,14 @@ export class SupabaseService {
     try {
       console.log('Starting getOrCreateSubmission with:', { phoneNumber, formType, formTypeLabel })
       
-      // Test if we can access the table at all
-      const { data: testData, error: testError } = await supabase
-        .from('customer_submissions')
-        .select('count(*)')
-        .limit(1)
+      // First, ensure customer exists
+      const customer = await this.getOrCreateCustomer(phoneNumber)
+      if (!customer) {
+        console.error('Failed to get or create customer')
+        return null
+      }
       
-      console.log('Table access test:', { testData, testError })
-      
-      // First, try to get existing submission
+      // Try to get existing submission
       const { data: existing, error: fetchError } = await supabase
         .from('customer_submissions')
         .select('*')
@@ -50,6 +207,7 @@ export class SupabaseService {
       const { data, error } = await supabase
         .from('customer_submissions')
         .insert({
+          customer_id: customer.id,
           phone_number: phoneNumber,
           form_type: formType,
           form_type_label: formTypeLabel,
@@ -176,7 +334,7 @@ export class SupabaseService {
   }
 
   // Update reminder tracking fields
-  static async updateSubmissionReminderTracking(submissionId: string, updates: any): Promise<boolean> {
+  static async updateSubmissionReminderTracking(submissionId: string, updates: Partial<CustomerSubmission>): Promise<boolean> {
     if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured, returning false')
       return false
@@ -613,7 +771,8 @@ export class SupabaseService {
     }
   }
 
-  // Update customer personal details for all their submissions
+  // Legacy method - kept for backward compatibility
+  // Use updateCustomer() instead for new code
   static async updateCustomerDetails(phoneNumber: string, details: {
     name?: string | null
     family_name?: string | null
@@ -621,42 +780,28 @@ export class SupabaseService {
     birth_date?: string | null
     address?: object | null
   }): Promise<boolean> {
-    if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured, returning false')
+    const customer = await this.getCustomerByPhone(phoneNumber)
+    if (!customer) {
+      console.warn('Customer not found for phone:', phoneNumber)
       return false
     }
-
-    try {
-      // Update all submissions for this phone number with the new details
-      const { error } = await supabase
-        .from('customer_submissions')
-        .update({
-          name: details.name,
-          family_name: details.family_name,
-          id_number: details.id_number,
-          birth_date: details.birth_date,
-          address: details.address,
-          updated_at: new Date().toISOString()
-        })
-        .eq('phone_number', phoneNumber)
-
-      if (error) {
-        console.error('Error updating customer details:', error)
-        return false
-      }
-
-      console.log('Customer details updated successfully for phone:', phoneNumber)
-      return true
-    } catch (error) {
-      console.error('Error in updateCustomerDetails:', error)
-      return false
+    
+    const convertedDetails = {
+      ...details,
+      name: details.name || undefined,
+      family_name: details.family_name || undefined,
+      id_number: details.id_number || undefined,
+      birth_date: details.birth_date || undefined,
+      address: details.address || undefined
     }
+    return await this.updateCustomer(customer.id, convertedDetails)
   }
 
   // Message Logging Functions
 
   // Log a sent message
   static async logMessage(messageData: {
+    customer_id?: string
     phone_number: string
     message_type: MessageLog['message_type']
     message_content: string
@@ -733,11 +878,23 @@ export class SupabaseService {
     try {
       console.log('Fetching message history for phone:', phoneNumber)
       
-      const { data, error } = await supabase
+      // First, try to get the customer_id for this phone number
+      const customer = await this.getCustomerByPhone(phoneNumber)
+      
+      // Query messages by both phone_number and customer_id to get all relevant messages
+      let query = supabase
         .from('message_logs')
         .select('*')
-        .eq('phone_number', phoneNumber)
-        .order('sent_at', { ascending: false })
+      
+      if (customer?.id) {
+        // If we have customer_id, query by both customer_id and phone_number
+        query = query.or(`phone_number.eq.${phoneNumber},customer_id.eq.${customer.id}`)
+      } else {
+        // Fallback to phone_number only
+        query = query.eq('phone_number', phoneNumber)
+      }
+      
+      const { data, error } = await query.order('sent_at', { ascending: false })
 
       console.log('Message history query result:', { data, error })
 
@@ -748,7 +905,8 @@ export class SupabaseService {
           details: error?.details,
           hint: error?.hint,
           code: error?.code,
-          phoneNumber
+          phoneNumber,
+          customerId: customer?.id
         })
         return []
       }
@@ -788,6 +946,180 @@ export class SupabaseService {
     } catch (error) {
       console.error('Error in getRecentMessages:', error)
       return []
+    }
+  }
+
+  // Authorization Token Functions
+  static async createAuthToken(tokenData: {
+    phone_number: string
+    form_type: string
+    token: string
+    expires_at: string
+    is_reusable?: boolean
+    created_by_admin?: boolean
+  }): Promise<AuthToken | null> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured, returning null')
+      return null
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('auth_tokens')
+        .insert([{
+          phone_number: tokenData.phone_number,
+          form_type: tokenData.form_type,
+          token: tokenData.token,
+          expires_at: tokenData.expires_at,
+          is_reusable: tokenData.is_reusable || false,
+          created_by_admin: tokenData.created_by_admin || true
+        }])
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error creating auth token:', error)
+        return null
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in createAuthToken:', error)
+      return null
+    }
+  }
+
+  static async validateAuthToken(token: string): Promise<AuthToken | null> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured, returning null')
+      return null
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('auth_tokens')
+        .select('*')
+        .eq('token', token)
+        .gt('expires_at', new Date().toISOString())
+        .single()
+
+      if (error) {
+        if (error.code !== 'PGRST116') { // Not found error
+          console.error('Error validating auth token:', error)
+        }
+        return null
+      }
+
+      // Check if token is single-use and already used
+      if (!data.is_reusable && data.used_at) {
+        return null
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in validateAuthToken:', error)
+      return null
+    }
+  }
+
+  static async markTokenAsUsed(tokenId: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured, returning false')
+      return false
+    }
+
+    try {
+      const { error } = await supabase
+        .from('auth_tokens')
+        .update({
+          used_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', tokenId)
+
+      if (error) {
+        console.error('Error marking token as used:', error)
+        return false
+      }
+
+      return true
+    } catch (error) {
+      console.error('Error in markTokenAsUsed:', error)
+      return false
+    }
+  }
+
+  static async getTokensByPhone(phoneNumber: string): Promise<AuthToken[]> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured, returning empty array')
+      return []
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('auth_tokens')
+        .select('*')
+        .eq('phone_number', phoneNumber)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching tokens for phone:', error)
+        return []
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error in getTokensByPhone:', error)
+      return []
+    }
+  }
+
+  static async revokeToken(tokenId: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured, returning false')
+      return false
+    }
+
+    try {
+      const { error } = await supabase
+        .from('auth_tokens')
+        .delete()
+        .eq('id', tokenId)
+
+      if (error) {
+        console.error('Error revoking token:', error)
+        return false
+      }
+
+      return true
+    } catch (error) {
+      console.error('Error in revokeToken:', error)
+      return false
+    }
+  }
+
+  static async cleanupExpiredTokens(): Promise<number> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured, returning 0')
+      return 0
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('auth_tokens')
+        .delete()
+        .lt('expires_at', new Date().toISOString())
+        .select()
+
+      if (error) {
+        console.error('Error cleaning up expired tokens:', error)
+        return 0
+      }
+
+      return data ? data.length : 0
+    } catch (error) {
+      console.error('Error in cleanupExpiredTokens:', error)
+      return 0
     }
   }
 }

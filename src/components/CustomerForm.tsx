@@ -130,6 +130,7 @@ export default function CustomerForm() {
   const router = useRouter();
   const phoneNumberFromUrl = searchParams.get('phone') || '';
   const formTypeFromUrl = searchParams.get('type') || '';
+  const tokenFromUrl = searchParams.get('token') || '';
   
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -153,35 +154,80 @@ export default function CustomerForm() {
   // Phone number to use (verified phone takes priority over URL phone)
   const phoneNumber = verifiedPhoneNumber || phoneNumberFromUrl;
 
-  // Check if user has authenticated phone number
+  // Check if user has authenticated phone number or valid token
   useEffect(() => {
-    // Check for existing authentication cookie
-    const existingAuth = AuthService.getClientAuth();
-    
-    if (existingAuth) {
-      // If we have valid auth and it matches the URL phone, auto-authenticate
-      if (phoneNumberFromUrl && existingAuth.phoneNumber === phoneNumberFromUrl) {
-        setVerifiedPhoneNumber(existingAuth.phoneNumber);
-        setIsAuthenticated(true);
-        return;
+    const authenticateUser = async () => {
+      // Priority 1: Check for valid authorization token
+      if (tokenFromUrl && phoneNumberFromUrl) {
+        try {
+          const response = await fetch(`/api/auth/validate-token?token=${encodeURIComponent(tokenFromUrl)}`);
+          const result = await response.json();
+          
+          if (result.success && result.isValid) {
+            // Verify token phone matches URL phone
+            if (result.data.phoneNumber === phoneNumberFromUrl) {
+              console.log('Valid authorization token found, auto-authenticating user');
+              
+              // Auto-authenticate with token
+              AuthService.setClientAuth(phoneNumberFromUrl);
+              setVerifiedPhoneNumber(phoneNumberFromUrl);
+              setIsAuthenticated(true);
+              
+              // Mark token as used if it's single-use
+              if (!result.data.isReusable) {
+                try {
+                  await fetch('/api/auth/validate-token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: tokenFromUrl, markAsUsed: true })
+                  });
+                } catch (error) {
+                  console.warn('Failed to mark token as used:', error);
+                }
+              }
+              
+              return; // Skip other authentication methods
+            } else {
+              console.warn('Token phone number does not match URL phone number');
+            }
+          } else {
+            console.warn('Invalid or expired authorization token');
+          }
+        } catch (error) {
+          console.error('Error validating authorization token:', error);
+        }
       }
       
-      // If we have auth but no phone in URL, use the authenticated phone
-      if (!phoneNumberFromUrl) {
-        setVerifiedPhoneNumber(existingAuth.phoneNumber);
-        setIsAuthenticated(true);
+      // Priority 2: Check for existing authentication cookie
+      const existingAuth = AuthService.getClientAuth();
+      
+      if (existingAuth) {
+        // If we have valid auth and it matches the URL phone, auto-authenticate
+        if (phoneNumberFromUrl && existingAuth.phoneNumber === phoneNumberFromUrl) {
+          setVerifiedPhoneNumber(existingAuth.phoneNumber);
+          setIsAuthenticated(true);
+          return;
+        }
         
-        // Update URL with authenticated phone
-        const params = new URLSearchParams(searchParams.toString());
-        params.set('phone', existingAuth.phoneNumber);
-        router.push(`/?${params.toString()}`);
-        return;
+        // If we have auth but no phone in URL, use the authenticated phone
+        if (!phoneNumberFromUrl) {
+          setVerifiedPhoneNumber(existingAuth.phoneNumber);
+          setIsAuthenticated(true);
+          
+          // Update URL with authenticated phone
+          const params = new URLSearchParams(searchParams.toString());
+          params.set('phone', existingAuth.phoneNumber);
+          router.push(`/?${params.toString()}`);
+          return;
+        }
       }
-    }
-    
-    // No valid authentication found, require verification
-    setIsAuthenticated(false);
-  }, [phoneNumberFromUrl, searchParams, router]);
+      
+      // No valid authentication found, require verification
+      setIsAuthenticated(false);
+    };
+
+    authenticateUser();
+  }, [phoneNumberFromUrl, tokenFromUrl, searchParams, router]);
 
   // Handle successful phone verification
   const handlePhoneVerified = (phone: string) => {
@@ -222,6 +268,8 @@ export default function CustomerForm() {
         if (typeof window === 'undefined') return;
         
         const currentFormType = formTypes.find(type => type.slug === selectedType) || formTypes[0];
+        console.log('Loading data for form type:', selectedType, 'Phone:', phoneNumber);
+        
         const submission = await SupabaseService.getOrCreateSubmission(
           phoneNumber, 
           selectedType, 
@@ -233,14 +281,19 @@ export default function CustomerForm() {
           
           // Load uploaded files
           const files = await SupabaseService.getUploadedFiles(submission.id!);
+          console.log('Found uploaded files:', files.length, files);
           setUploadedFilesList(files);
           
           // Create uploadedFiles state from database records
           const fileState: FileUploadState = {};
           files.forEach(file => {
-            fileState[file.field_slug] = new File([], file.file_name); // Placeholder file object
+            // Create a proper file object with actual data to indicate it exists
+            const placeholderData = new Uint8Array([1]); // Minimal data to show file exists
+            fileState[file.field_slug] = new File([placeholderData], file.file_name);
+            console.log('Loaded existing file:', file.field_slug, file.file_name);
           });
           setUploadedFiles(fileState);
+          console.log('Loaded files state:', fileState);
         }
       } catch (error) {
         console.error('Error loading existing data:', error);
@@ -514,6 +567,9 @@ export default function CustomerForm() {
               const isUploaded = uploadedFiles[fieldKey];
               const isDragging = dragOver === fieldKey;
               const isFieldLoading = fieldLoading[fieldKey] || false;
+              
+              // Debug field matching
+              console.log(`Field: ${field.name} | Key: ${fieldKey} | Has file: ${!!isUploaded} | File:`, isUploaded?.name);
               
               return (
                 <div key={index} className={`border border-gray-200 rounded-lg p-4 ${

@@ -5,7 +5,7 @@ import { SupabaseService } from '@/lib/supabase-service'
 
 export async function POST(request: NextRequest) {
   try {
-    const { phoneNumber, message, fileUrl, fileName, caption, formType } = await request.json()
+    const { phoneNumber, message, fileUrl, fileName, caption, formType, customerName, customerId } = await request.json()
 
     if (!phoneNumber) {
       return NextResponse.json({ error: 'Phone number is required' }, { status: 400 })
@@ -32,13 +32,14 @@ export async function POST(request: NextRequest) {
 
     // Log the message
     await SupabaseService.logMessage({
+      customer_id: customerId,
       phone_number: phoneNumber,
       message_type: messageType,
       message_content: message || `File: ${fileName}${caption ? ` - ${caption}` : ''}`,
       form_type: formType,
       sent_successfully: result.success,
       error_message: result.success ? undefined : result.error,
-      whatsapp_message_id: result.data?.idMessage
+      whatsapp_message_id: result.data && typeof result.data === 'object' && 'idMessage' in result.data ? String(result.data.idMessage) : undefined
     })
 
     if (result.success) {

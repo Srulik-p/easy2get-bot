@@ -11,8 +11,17 @@ export async function POST(request: NextRequest) {
 
     console.log('Updating customer details for:', phoneNumber, details)
 
-    // Update all submissions for this phone number with the new details
-    const success = await SupabaseService.updateCustomerDetails(phoneNumber, details)
+    // Get customer by phone number
+    const customer = await SupabaseService.getCustomerByPhone(phoneNumber)
+    if (!customer) {
+      return NextResponse.json({
+        success: false,
+        error: 'Customer not found'
+      }, { status: 404 })
+    }
+
+    // Update customer in customers table
+    const success = await SupabaseService.updateCustomer(customer.id, details)
 
     if (success) {
       return NextResponse.json({

@@ -1,6 +1,6 @@
 import { SupabaseService } from './supabase-service'
 import { greenAPI } from './green-api'
-import { CustomerSubmission } from './supabase'
+import { CustomerSubmission, MessageLog } from './supabase'
 import formFieldsData from '@/data/form-fields.json'
 import fs from 'fs'
 import path from 'path'
@@ -72,7 +72,6 @@ export class ReminderService {
 
         const firstSentAt = new Date(submission.first_sent_at)
         const lastInteractionAt = submission.last_interaction_at ? new Date(submission.last_interaction_at) : firstSentAt
-        const lastReminderAt = submission.last_reminder_sent_at ? new Date(submission.last_reminder_sent_at) : null
 
         // Calculate time since last interaction
         const hoursSinceLastAction = (now.getTime() - lastInteractionAt.getTime()) / (1000 * 60 * 60)
@@ -168,14 +167,14 @@ export class ReminderService {
       // Log the reminder message
       await SupabaseService.logMessage({
         phone_number: submission.phone_number,
-        message_type: `reminder_${reminderType}` as any,
+        message_type: `reminder_${reminderType}` as MessageLog['message_type'],
         message_content: message,
         form_type: submission.form_type,
         form_type_label: submission.form_type_label,
         reminder_type: reminderType,
         sent_successfully: result.success,
         error_message: result.success ? undefined : result.error,
-        whatsapp_message_id: result.data?.idMessage
+        whatsapp_message_id: result.data && typeof result.data === 'object' && 'idMessage' in result.data ? String(result.data.idMessage) : undefined
       })
       
       if (result.success) {
@@ -230,22 +229,14 @@ export class ReminderService {
   }
 
   // Get customer name with fallback
-  private static getCustomerName(submission: CustomerSubmission): string {
-    if (submission.name && submission.family_name) {
-      return `${submission.name} ${submission.family_name}`
-    } else if (submission.name) {
-      return submission.name
-    } else if (submission.family_name) {
-      return submission.family_name
-    } else {
-      return 'לקוח יקר' // "Dear customer" fallback
-    }
+  private static getCustomerName(_submission: CustomerSubmission): string {
+    return 'לקוח יקר' // "Dear customer" fallback
   }
 
   // Update reminder tracking in database
   private static async updateReminderTracking(submissionId: string, reminderType: 'first' | 'second' | 'first_week' | 'second_week' | 'third_week' | 'fourth_week'): Promise<void> {
     try {
-      const updates: any = {
+      const updates: Partial<CustomerSubmission> = {
         last_reminder_sent_at: new Date().toISOString()
       }
 

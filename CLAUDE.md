@@ -66,11 +66,25 @@ src/
 
 ### Configuration Notes
 
-- **TypeScript**: Uses `@/*` path mapping for imports
+- **TypeScript**: Uses `@/*` path mapping for imports with strict mode enabled
 - **Next.js**: Minimal configuration, relies on defaults
 - **HTML Lang**: Set to Hebrew (`he`) with RTL direction
 - **Turbopack**: Enabled for faster development builds
 - **ESLint**: Next.js config with modern ESLint 9 setup
+
+### TypeScript Guidelines
+
+**IMPORTANT**: This project uses TypeScript in strict mode. When writing code:
+
+- **Never use `any` type** - Always specify proper types or use generic constraints
+- **Handle null vs undefined properly**:
+  - Database/API types use `undefined` for optional fields
+  - Convert `null` values to `undefined` when assigning to optional properties
+  - Use `|| undefined` instead of `|| null` for optional fields
+- **Import required types**: Always import type definitions (e.g., `CustomerSubmission`, `MessageLog`) 
+- **Type API responses**: Use type guards or proper typing instead of `as any`
+- **Handle optional chaining**: Use proper type checking for nested object access
+- **Unused parameters**: Prefix with `_` if parameter is required but unused
 
 ### Key URLs
 
