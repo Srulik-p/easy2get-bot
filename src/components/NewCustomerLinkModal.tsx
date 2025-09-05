@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import formData from '@/data/form-fields.json';
+import { SupabaseService } from '@/lib/supabase-service';
 
 interface NewCustomerLinkModalProps {
   isOpen: boolean;
@@ -214,6 +215,62 @@ ${linkToUse}
       
       // Combine first and last name if either exists
       const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ') || undefined;
+      
+      // Create database entries before sending the message
+      try {
+        // Get form type label for database
+        const formTypeData = formTypes.find(ft => ft.slug === selectedFormType);
+        const formTypeLabel = formTypeData?.label || selectedFormType;
+        
+        // Create or update customer in database
+        const phoneForDb = phoneNumber.trim();
+        const customerData = {
+          phone_number: phoneForDb,
+          name: firstName.trim() || undefined,
+          family_name: lastName.trim() || undefined,
+          status: 'new_lead' as const
+        };
+        
+        console.log('Creating customer in database:', customerData);
+        let customer = await SupabaseService.getOrCreateCustomer(phoneForDb);
+        
+        // If customer exists but we have name data, update it
+        if (customer && (firstName.trim() || lastName.trim())) {
+          const updateData: any = {};
+          if (firstName.trim()) updateData.name = firstName.trim();
+          if (lastName.trim()) updateData.family_name = lastName.trim();
+          if (Object.keys(updateData).length > 0) {
+            await SupabaseService.updateCustomer(customer.id, updateData);
+          }
+        }
+        
+        // Create form submission entry in database
+        console.log('Creating form submission entry:', {
+          phoneNumber: phoneForDb,
+          formType: selectedFormType,
+          formTypeLabel
+        });
+        
+        const submission = await SupabaseService.getOrCreateSubmission(
+          phoneForDb,
+          selectedFormType,
+          formTypeLabel
+        );
+        
+        if (submission) {
+          // Mark when the form was first sent
+          await SupabaseService.updateSubmissionSentTracking(
+            submission.id!,
+            new Date().toISOString()
+          );
+          console.log('Form submission entry created/updated successfully');
+        } else {
+          console.warn('Failed to create form submission entry');
+        }
+      } catch (dbError) {
+        console.error('Error creating database entries:', dbError);
+        // Continue with sending the message even if database operations fail
+      }
       
       await onSendLink(phoneNumber.trim(), selectedFormType, messageToSend, fullName);
       

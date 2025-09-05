@@ -42,10 +42,11 @@ export async function GET() {
       message: `Found ${candidates.length} customers needing reminders`,
       candidates: candidates.map(c => ({
         phoneNumber: c.submission.phone_number,
-        formType: c.submission.form_type_label,
+        formType: c.submission.form_type,
+        formTypeLabel: c.submission.form_type_label,
         reminderType: c.reminderType,
         daysSinceLastAction: c.daysSinceLastAction,
-        reminderCount: c.submission.reminder_count
+        reminderCount: c.submission.reminder_count || 0
       })),
       timestamp: new Date().toISOString()
     })

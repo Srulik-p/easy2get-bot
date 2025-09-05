@@ -441,7 +441,9 @@ export default function CustomerPage() {
         {/* Header with back button */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-          <h1 className="text-3xl font-bold text-gray-900">פרטי לקוח - {phoneNumber}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{customer && (customer.name || customer.family_name)
+            ? `פרטי לקוח - ${customer.name || ''}${customer.family_name ? ` ${customer.family_name}` : ''}`
+            : `פרטי לקוח - ${(() => { const p = phoneNumber || ''; if (p.startsWith('+972') && p.length >= 13) { const local = p.substring(4); return `0${local.substring(0,2)}-${local.substring(2,5)}-${local.substring(5)}` } return p })()}`}</h1>
             {customer && (
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${getCustomerStatusColor(customer.status)}`}>
                 {getCustomerStatusLabel(customer.status)}
@@ -559,32 +561,6 @@ export default function CustomerPage() {
 
               {selectedFormType && selectedSubmission && (
                 <>
-                  {/* Form Status */}
-                  <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                    <h3 className="font-medium mb-2 text-gray-900">סטטוס הטופס</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <div className="font-medium text-gray-800">נוצר</div>
-                        <div className="text-gray-600">{new Date(selectedSubmission.created_at || '').toLocaleDateString('he-IL')}</div>
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-800">עודכן</div>
-                        <div className="text-gray-600">{new Date(selectedSubmission.updated_at || '').toLocaleDateString('he-IL')}</div>
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-800">שדות מולאו</div>
-                        <div className="text-gray-600">
-                          {(() => {
-                            const fromArray = selectedSubmission.submitted_fields?.length || 0
-                            const fromFiles = customerFiles.filter(f => f.submission_id === selectedSubmission.id).length
-                            const used = fromArray || fromFiles
-                            return `${used} / ${getFormTypeFields().filter(f => !f.isSection).length}`
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Form Fields */}
                   <div className="mb-6">
                     <h3 className="font-medium mb-4 text-gray-900">שדות הטופס</h3>
@@ -675,7 +651,30 @@ export default function CustomerPage() {
             <div className="space-y-6">
               {/* Customer Details */}
               <div className="bg-white rounded-lg shadow-md p-6">
-                <h2 className="text-xl font-semibold mb-4 text-gray-900">פרטי לקוח</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-gray-900">פרטי לקוח</h2>
+                  <button
+                    className="text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-1 rounded-md transition-colors"
+                    onClick={async () => {
+                      const confirmed = confirm(`למחוק את הלקוח וכל הנתונים עבור ${phoneNumber}? פעולה זו אינה ניתנת לביטול.`)
+                      if (!confirmed) return
+                      try {
+                        const success = await SupabaseService.deleteCustomerCompletely(phoneNumber)
+                        if (success) {
+                          alert('הלקוח נמחק בהצלחה')
+                          window.location.href = '/admin'
+                        } else {
+                          alert('מחיקה נכשלה. נסה שוב.')
+                        }
+                      } catch (e) {
+                        console.error('Delete customer failed:', e)
+                        alert('שגיאה במחיקה')
+                      }
+                    }}
+                  >
+                    מחק לקוח
+                  </button>
+                </div>
                 
                 {/* Personal Details */}
                 <div className="p-4 bg-blue-50 rounded-lg mb-4">

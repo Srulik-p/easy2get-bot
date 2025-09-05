@@ -12,6 +12,7 @@ interface ReminderCandidate {
 }
 
 interface MessageTemplates {
+  first_message: string
   first: string
   second: string
   first_week: string
@@ -28,6 +29,7 @@ export default function RemindersPage() {
   const [showTemplates, setShowTemplates] = useState(false)
   const [savingTemplates, setSavingTemplates] = useState(false)
   const [templates, setTemplates] = useState<MessageTemplates>({
+    first_message: 'שלום {customerName}! 👋\n\nבהמשך לשיחתינו ועל מנת שנוכל לקדם את הבקשה שלך מול המשרד לביטחון פנים יש להמציא את המסמכים המופרטים ברשימה הבאה:\n\n{formLink}\n\nבברכה, Easy2Get',
     first: 'שלום {customerName}! 👋\n\nשלחנו לך טופס "{formLabel}" לפני יומיים.\n\n📋 זה לוקח רק כמה דקות למלא\n\nצריך עזרה? פשוט תשלח הודעה!',
     second: 'היי {customerName}! 😊\n\nעדיין לא מילאת את טופס "{formLabel}"?\n\n⏰ אנחנו כאן לעזור אם יש שאלות\n📞 צור קשר ונסביר איך למלא',
     first_week: 'תזכורת שבועית ראשונה {customerName} 📅\n\nטופס "{formLabel}" שלך עדיין מחכה!\n\n💬 יש בעיה טכנית? שאלות?\nאנחנו כאן לעזור',
@@ -215,6 +217,23 @@ export default function RemindersPage() {
             <h2 className="text-xl font-semibold mb-4 text-gray-900">עריכת תבניות הודעות תזכורת</h2>
             
             <div className="space-y-6">
+              {/* First Message Template */}
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-2">
+                  🆕 הודעה ראשונה (ללקוחות ללא טפסים)
+                </label>
+                <textarea
+                  value={templates.first_message}
+                  onChange={(e) => setTemplates({...templates, first_message: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900"
+                  rows={5}
+                  placeholder="הודעה ראשונה ללקוחות ללא טפסים"
+                />
+                <div className="text-xs text-gray-600 mt-1">
+                  השתמש ב-{`{customerName}`} לשם הלקוח וב-{`{formLink}`} לקישור הטופס. הודעה זו נשלחת ללקוחות שלא קיבלו עדיין אף טופס.
+                </div>
+              </div>
+
               {/* First Reminder Template */}
               <div>
                 <label className="block text-sm font-medium text-gray-900 mb-2">
@@ -358,40 +377,60 @@ export default function RemindersPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {candidates.map((candidate, index) => (
-                <div key={index} className="border rounded-lg p-4 bg-gray-50">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">
-                        📱 {candidate.phoneNumber}
+              {candidates.map((candidate, index) => {
+                const isFirstMessage = candidate.reminderType === 'first_message'
+                const bgColor = isFirstMessage ? 'bg-blue-50 border-blue-200' : 'bg-gray-50'
+                
+                return (
+                  <div key={index} className={`border rounded-lg p-4 ${bgColor}`}>
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 flex items-center gap-2">
+                          📱 {candidate.phoneNumber}
+                          {isFirstMessage && <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded">הודעה ראשונה</span>}
+                        </div>
+                        <div className="text-sm text-gray-700 mt-1">
+                          📋 {candidate.formTypeLabel || candidate.formType}
+                        </div>
+                        <div className="flex gap-4 mt-2 text-xs text-gray-600">
+                          <span>🔔 סוג תזכורת: {
+                            candidate.reminderType === 'first_message' ? 'הודעה ראשונה' :
+                            candidate.reminderType === 'first' ? 'תזכורת ראשונה' :
+                            candidate.reminderType === 'second' ? 'תזכורת שנייה' :
+                            candidate.reminderType === 'first_week' ? 'שבוע ראשון' :
+                            candidate.reminderType === 'second_week' ? 'שבוע שני' :
+                            candidate.reminderType === 'third_week' ? 'שבוע שלישי' :
+                            candidate.reminderType === 'fourth_week' ? 'שבוע רביעי' :
+                            candidate.reminderType
+                          }</span>
+                          <span>📅 ימים מאז פעולה: {candidate.daysSinceLastAction}</span>
+                          <span>📊 תזכורות שנשלחו: {candidate.reminderCount}</span>
+                        </div>
+                        {isFirstMessage && (
+                          <div className="mt-2 text-xs text-blue-700 font-medium">
+                            🆕 לקוח ללא טפסים - יקבל קישור עם אימות וקיצור אוטומטי
+                          </div>
+                        )}
                       </div>
-                      <div className="text-sm text-gray-700 mt-1">
-                        📋 {candidate.formType}
+                      
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => sendManualReminder(candidate.phoneNumber, candidate.formType)}
+                          className="text-xs bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded"
+                        >
+                          שלח עכשיו
+                        </button>
+                        <Link
+                          href={`/admin/customers/${encodeURIComponent(candidate.phoneNumber)}`}
+                          className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded"
+                        >
+                          צפה בלקוח
+                        </Link>
                       </div>
-                      <div className="flex gap-4 mt-2 text-xs text-gray-600">
-                        <span>🔔 סוג תזכורת: {candidate.reminderType}</span>
-                        <span>📅 ימים מאז פעולה: {candidate.daysSinceLastAction}</span>
-                        <span>📊 תזכורות שנשלחו: {candidate.reminderCount}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => sendManualReminder(candidate.phoneNumber, candidate.formType)}
-                        className="text-xs bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded"
-                      >
-                        שלח עכשיו
-                      </button>
-                      <Link
-                        href={`/admin/customers/${encodeURIComponent(candidate.phoneNumber)}`}
-                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded"
-                      >
-                        צפה בלקוח
-                      </Link>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -400,6 +439,7 @@ export default function RemindersPage() {
         <div className="bg-blue-50 rounded-lg p-6 mt-6">
           <h3 className="font-semibold text-blue-900 mb-2">איך זה עובד?</h3>
           <div className="text-sm text-blue-800 space-y-1">
+            <div>• 🆕 <strong>הודעות ראשונות:</strong> לקוחות ללא טפסים יקבלו הודעה ראשונה עם קישור מאומת וקצר אוטומטית</div>
             <div>• 📤 כאשר טופס נשלח ללקוח, הטיימר מתחיל</div>
             <div>• ⏰ לאחר 48 שעות - תזכורת ראשונה (אם אין אינטראקציה)</div>
             <div>• ⏰ לאחר 72 שעות נוספות - תזכורת שנייה</div>
@@ -408,6 +448,7 @@ export default function RemindersPage() {
             <div>• 📅 שבוע שלישי - תזכורת שבוע שלישי</div>
             <div>• 📅 שבוע רביעי ואילך - תזכורת אחרונה (חוזרת כל שבוע)</div>
             <div>• 🎯 אינטראקציות (העלאת קבצים) מאפסות את הטיימר</div>
+            <div>• 🔧 <strong>סוג הטופס נקבע אוטומטית</strong> על פי השדה &ldquo;קריטריון&rdquo; של הלקוח</div>
           </div>
         </div>
       </div>

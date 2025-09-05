@@ -54,21 +54,6 @@ const displayPhoneNumber = (phone: string) => {
   return phone
 }
 
-// Normalize phone numbers to +972XXXXXXXXX for reliable comparisons
-const normalizePhone = (phone: string): string => {
-  if (!phone) return ''
-  let digits = phone.trim()
-  // Already +972 format
-  if (digits.startsWith('+972')) return digits
-  // Handle 972 without plus
-  if (digits.startsWith('972')) return `+${digits}`
-  // Remove non-digits and convert 0XXXXXXXXX to +972XXXXXXXXX
-  digits = digits.replace(/\D/g, '')
-  if (digits.startsWith('0')) return `+972${digits.substring(1)}`
-  if (digits.startsWith('972')) return `+${digits}`
-  return `+972${digits}`
-}
-
 // Function to get form fields for a specific type
 const getFormFields = (formTypeSlug: string, selectedMailDocs: string[] = []) => {
   const formType = formTypes.find(type => type.slug === formTypeSlug);
@@ -179,11 +164,8 @@ export default function CustomerForm() {
           const result = await response.json();
           
           if (result.success && result.isValid) {
-            // Verify token phone matches URL phone (normalize for safety)
-            const tokenPhone: string = result.data.phoneNumber
-            const normalizedTokenPhone = normalizePhone(tokenPhone)
-            const normalizedUrlPhone = normalizePhone(phoneNumberFromUrl)
-            if (normalizedTokenPhone === normalizedUrlPhone) {
+            // Verify token phone matches URL phone
+            if (result.data.phoneNumber === phoneNumberFromUrl) {
               console.log('Valid authorization token found, auto-authenticating user');
               
               // Auto-authenticate with token
@@ -205,6 +187,8 @@ export default function CustomerForm() {
               }
               
               return; // Skip other authentication methods
+            } else {
+              console.warn('Token phone number does not match URL phone number');
             }
           } else {
             console.warn('Invalid or expired authorization token');
@@ -458,84 +442,70 @@ export default function CustomerForm() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 mb-4 sm:mb-6">
-          <div className="space-y-2 sm:space-y-0">
-            {/* First Row: Customer Info & Logout Button (and dropdown on desktop) */}
-            <div className="flex items-center justify-between gap-3">
-              {/* Customer Info */}
-              <div className="flex-1 min-w-0">
-                {phoneNumber && (
+          <div className="flex items-center justify-between gap-3">
+            {/* Customer Info */}
+            <div className="flex-1 min-w-0">
+              {phoneNumber && (
+                <div className="flex items-center gap-2">
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-                      <span className="text-sm sm:text-base font-medium text-gray-900 truncate">
-                        {displayPhoneNumber(phoneNumber)}
-                      </span>
-                    </div>
-                    {currentSubmission?.form_type_label && (
-                      <span className="hidden sm:inline text-xs text-gray-500 border-r pr-2 mr-2 whitespace-nowrap">
-                        {currentSubmission.form_type_label}
-                      </span>
-                    )}
+                    <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                    <span className="text-sm sm:text-base font-medium text-gray-900 truncate">
+                      {displayPhoneNumber(phoneNumber)}
+                    </span>
                   </div>
-                )}
-                {!phoneNumber && (
-                  <div className="text-sm text-gray-600">
-                    הזן מספר טלפון בכתובת URL
-                  </div>
-                )}
-              </div>
-              
-              {/* Desktop Form Type Dropdown & Logout Button */}
-              <div className="flex items-center gap-2">
-                {/* Form Type Dropdown - Desktop Only */}
-                <select
-                  value={selectedType}
-                  onChange={(e) => handleFormTypeChange(e.target.value)}
-                  disabled={!!formTypeFromUrl}
-                  className={`hidden sm:block text-sm px-3 py-1 border rounded-lg font-medium ${formTypeFromUrl 
-                    ? 'border-gray-200 bg-gray-100 text-gray-600 cursor-not-allowed' 
-                    : 'border-gray-300 bg-white text-gray-900 hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                  }`}
-                  aria-label="בחר סוג טופס"
-                >
-                  {formTypes.map((type, index) => (
-                    <option key={index} value={type.slug}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-                
-                {/* Logout Button - Always visible */}
-                {phoneNumber && (
-                  <button
-                    onClick={handleLogout}
-                    className="text-xs sm:text-sm text-red-600 hover:text-red-800 font-medium bg-red-50 hover:bg-red-100 px-2 sm:px-3 py-1 rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
-                  >
-                    התנתק
-                  </button>
-                )}
-              </div>
+                  {currentSubmission?.form_type_label && (
+                    <span className="hidden sm:inline text-xs text-gray-500 border-r pr-2 mr-2 whitespace-nowrap">
+                      {currentSubmission.form_type_label}
+                    </span>
+                  )}
+                </div>
+              )}
+              {!phoneNumber && (
+                <div className="text-sm text-gray-600">
+                  הזן מספר טלפון בכתובת URL
+                </div>
+              )}
             </div>
             
-            {/* Second Row: Form Type Dropdown (Mobile Only) */}
-            <div className="block sm:hidden">
-              <select
-                value={selectedType}
-                onChange={(e) => handleFormTypeChange(e.target.value)}
-                disabled={!!formTypeFromUrl}
-                className={`w-full text-sm px-3 py-2 border rounded-lg font-medium ${formTypeFromUrl 
-                  ? 'border-gray-200 bg-gray-100 text-gray-600 cursor-not-allowed' 
-                  : 'border-gray-300 bg-white text-gray-900 hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                }`}
-                aria-label="בחר סוג טופס"
+            {/* Logout Button */}
+            {phoneNumber && (
+              <button
+                onClick={handleLogout}
+                className="text-xs sm:text-sm text-red-600 hover:text-red-800 font-medium bg-red-50 hover:bg-red-100 px-2 sm:px-3 py-1 rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
               >
-                {formTypes.map((type, index) => (
-                  <option key={index} value={type.slug}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+                התנתק
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Form Type Selection */}
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-4 sm:mb-6">
+          <div className="max-w-sm">
+            <label className="block text-base sm:text-lg font-semibold text-gray-900 mb-2">
+              סוג הטופס:
+              {formTypeFromUrl && (
+                <span className="text-sm font-normal text-gray-500 mr-2">
+                  (נקבע מראש)
+                </span>
+              )}
+            </label>
+            <select
+              value={selectedType}
+              onChange={(e) => handleFormTypeChange(e.target.value)}
+              disabled={!!formTypeFromUrl}
+              className={`w-full p-3 border rounded-lg text-base sm:text-lg text-black ${formTypeFromUrl 
+                ? 'border-gray-200 bg-gray-100 text-gray-600 cursor-not-allowed' 
+                : 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+              }`}
+              aria-label="בחר סוג טופס"
+            >
+              {formTypes.map((type, index) => (
+                <option key={index} value={type.slug}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 

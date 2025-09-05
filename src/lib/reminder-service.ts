@@ -7,11 +7,18 @@ import path from 'path'
 
 interface ReminderCandidate {
   submission: CustomerSubmission
-  reminderType: 'first' | 'second' | 'first_week' | 'second_week' | 'third_week' | 'fourth_week'
+  reminderType: 'first_message' | 'first' | 'second' | 'first_week' | 'second_week' | 'third_week' | 'fourth_week'
   daysSinceLastAction: number
 }
 
+interface FirstMessageCandidate {
+  customer: import('./supabase').Customer
+  suggestedFormType: string
+  suggestedFormLabel: string
+}
+
 interface MessageTemplates {
+  first_message: string
   first: string
   second: string
   first_week: string
@@ -30,12 +37,13 @@ export class ReminderService {
 
   // Default templates (fallback)
   private static readonly DEFAULT_TEMPLATES: MessageTemplates = {
+    first_message: 'שלום {customerName}! 👋\n\nבהמשך לשיחתינו ועל מנת שנוכל לקדם את הבקשה שלך מול המשרד לביטחון פנים יש להמציא את המסמכים המופרטים ברשימה הבאה:\n\n{formLink}\n\nבברכה, Easy2Get',
     first: 'שלום {customerName}! 👋\n\nשלחנו לך טופס "{formLabel}" לפני יומיים.\n\n📋 זה לוקח רק כמה דקות למלא\n\nצריך עזרה? פשוט תשלח הודעה!',
     second: 'היי {customerName}! 😊\n\nעדיין לא מילאת את טופס "{formLabel}"?\n\n⏰ אנחנו כאן לעזור אם יש שאלות\n📞 צור קשר ונסביר איך למלא',
     first_week: 'תזכורת שבועית ראשונה {customerName} 📅\n\nטופס "{formLabel}" שלך עדיין מחכה!\n\n💬 יש בעיה טכנית? שאלות?\nאנחנו כאן לעזור',
     second_week: 'תזכורת שבועית שנייה {customerName} 🔔\n\nטופס "{formLabel}" - זה הזמן להשלים!\n\n📞 צריך עזרה? צור קשר ונסביר',
     third_week: 'תזכורת שבועית שלישית {customerName} ⏰\n\nעדיין לא השלמת את טופס "{formLabel}"?\n\n🤝 אנחנו כאן לסייע בכל שאלה',
-    fourth_week: 'תזכורת אחרונה {customerName} 🚨\n\nטופס "{formLabel}" מחכה כבר חודש!\n\n📋 בוא נסיים את זה יחד - צור קשר'
+    fourth_week: 'תזכורת אחרונה {customerName} 🚨\n\nטופس "{formLabel}" מחכה כבר חודש!\n\n📋 בוא נסיים את זה יחד - צור קשר'
   }
 
   // Load message templates from file
@@ -52,13 +60,14 @@ export class ReminderService {
     return this.DEFAULT_TEMPLATES
   }
 
-  // Get customers who need reminders
+  // Get customers who need reminders (including first messages)
   static async getCustomersNeedingReminders(): Promise<ReminderCandidate[]> {
     try {
       const submissions = await SupabaseService.getAllSubmissions()
       const candidates: ReminderCandidate[] = []
       const now = new Date()
 
+      // Handle existing submissions
       for (const submission of submissions) {
         // Skip if reminders are paused or form is completed
         if (submission.reminder_paused || this.isFormCompleted(submission)) {
@@ -93,6 +102,28 @@ export class ReminderService {
         }
       }
 
+      // Handle customers without forms (first message candidates)
+      const customersWithoutForms = await this.getCustomersWithoutForms()
+      for (const firstMsgCandidate of customersWithoutForms) {
+        // Create a mock submission for the first message candidate
+        const mockSubmission: CustomerSubmission = {
+          customer_id: firstMsgCandidate.customer.id,
+          phone_number: firstMsgCandidate.customer.phone_number,
+          form_type: firstMsgCandidate.suggestedFormType,
+          form_type_label: firstMsgCandidate.suggestedFormLabel,
+          submitted_fields: [],
+          status: 'new',
+          reminder_count: 0,
+          reminder_paused: false
+        }
+
+        candidates.push({
+          submission: mockSubmission,
+          reminderType: 'first_message',
+          daysSinceLastAction: 0 // New customers don't have previous actions
+        })
+      }
+
       return candidates
     } catch (error) {
       console.error('Error getting customers needing reminders:', error)
@@ -104,7 +135,7 @@ export class ReminderService {
   private static determineReminderType(
     submission: CustomerSubmission, 
     now: Date
-  ): 'first' | 'second' | 'first_week' | 'second_week' | 'third_week' | 'fourth_week' | null {
+  ): 'first_message' | 'first' | 'second' | 'first_week' | 'second_week' | 'third_week' | 'fourth_week' | null {
     
     const firstSentAt = new Date(submission.first_sent_at!)
     const lastInteractionAt = submission.last_interaction_at ? new Date(submission.last_interaction_at) : firstSentAt
@@ -158,6 +189,23 @@ export class ReminderService {
   static async sendReminder(candidate: ReminderCandidate): Promise<boolean> {
     try {
       const { submission, reminderType } = candidate
+
+      // Handle first_message differently
+      if (reminderType === 'first_message') {
+        // For first messages, we need to create the actual submission and send via sendFirstMessage
+        const firstMsgCandidate: FirstMessageCandidate = {
+          customer: { 
+            id: submission.customer_id,
+            phone_number: submission.phone_number,
+            status: 'new_lead'
+          } as import('./supabase').Customer,
+          suggestedFormType: submission.form_type,
+          suggestedFormLabel: submission.form_type_label
+        }
+        return await this.sendFirstMessage(firstMsgCandidate)
+      }
+
+      // Handle regular reminders
       const message = this.getReminderMessage(reminderType, submission)
       const chatId = greenAPI.formatChatId(submission.phone_number)
 
@@ -193,13 +241,16 @@ export class ReminderService {
   }
 
   // Get reminder message based on type
-  private static getReminderMessage(reminderType: 'first' | 'second' | 'first_week' | 'second_week' | 'third_week' | 'fourth_week', submission: CustomerSubmission): string {
+  private static getReminderMessage(reminderType: 'first_message' | 'first' | 'second' | 'first_week' | 'second_week' | 'third_week' | 'fourth_week', submission: CustomerSubmission, formLink?: string): string {
     const formLabel = submission.form_type_label
     const customerName = this.getCustomerName(submission)
     const templates = this.loadMessageTemplates()
 
     let template: string
     switch (reminderType) {
+      case 'first_message':
+        template = templates.first_message
+        break
       case 'first':
         template = templates.first
         break
@@ -226,6 +277,7 @@ export class ReminderService {
     return template
       .replace(/{formLabel}/g, formLabel)
       .replace(/{customerName}/g, customerName)
+      .replace(/{formLink}/g, formLink || '')
   }
 
   // Get customer name with fallback
@@ -234,14 +286,16 @@ export class ReminderService {
   }
 
   // Update reminder tracking in database
-  private static async updateReminderTracking(submissionId: string, reminderType: 'first' | 'second' | 'first_week' | 'second_week' | 'third_week' | 'fourth_week'): Promise<void> {
+  private static async updateReminderTracking(submissionId: string, reminderType: 'first_message' | 'first' | 'second' | 'first_week' | 'second_week' | 'third_week' | 'fourth_week'): Promise<void> {
     try {
       const updates: Partial<CustomerSubmission> = {
         last_reminder_sent_at: new Date().toISOString()
       }
 
       // Set reminder count based on type
-      if (reminderType === 'first') {
+      if (reminderType === 'first_message') {
+        updates.reminder_count = 0 // first_message doesn't increment reminder count
+      } else if (reminderType === 'first') {
         updates.reminder_count = 1
       } else if (reminderType === 'second') {
         updates.reminder_count = 2
@@ -320,6 +374,195 @@ export class ReminderService {
       return await SupabaseService.updateSubmissionReminderPause(submissionId, paused)
     } catch (error) {
       console.error('Error pausing/resuming reminders:', error)
+      return false
+    }
+  }
+
+  // Map customer criterion to form type (using Hebrew slugs from form-fields.json)
+  private static mapCriterionToFormType(criterion?: import('./supabase').CustomerCriterion): {formType: string, formLabel: string} {
+    const mapping: Record<string, {formType: string, formLabel: string}> = {
+      'זכאי-מגורים': {formType: 'זכאי-מגורים', formLabel: 'מגורים באיזור זכאי'},
+      'צבא-דרגה': {formType: 'צבא-דרגה', formLabel: 'צבא- דרגה'},
+      'צבא-לוחם': {formType: 'צבא-לוחם', formLabel: 'צבא- לוחם'},
+      'איזור-עבודה-שכיר': {formType: 'עבודה-זכאי-שכיר', formLabel: 'עבודה באיזור זכאי שכיר'},
+      'איזור-עבודה-עצמאי': {formType: 'עבודה-זכאי-עצמאי', formLabel: 'עבודה באיזור זכאי עצמאי'},
+      'איזור-לימודים': {formType: 'תלמיד-סטודנט', formLabel: 'תלמיד / סטודנט'},
+      'מתנדב': {formType: 'מתנדב', formLabel: 'מתנדב'},
+      'חקלאי-עצמאי': {formType: 'חקלאי-עצמאי', formLabel: 'חקלאי עצמאי'},
+      'חקלאי-שכיר': {formType: 'חקלאי-שכיר', formLabel: 'חקלאי שכיר'},
+      'חקלאי-דרגה-ראשונה': {formType: 'חקלאי-דרגה-ראשונה', formLabel: 'חקלאי דרגה ראשונה'},
+      'מאבטח': {formType: 'מאבטח', formLabel: 'מאבטח'},
+      'מנהל-ביטחון': {formType: 'מנהל-ביטחון', formLabel: 'מנהל ביטחון'}
+    }
+    
+    // Default to residential form if no mapping found
+    return mapping[criterion || ''] || {formType: 'זכאי-מגורים', formLabel: 'מגורים באיזור זכאי'}
+  }
+
+  // Get customers without any form submissions
+  static async getCustomersWithoutForms(): Promise<FirstMessageCandidate[]> {
+    try {
+      const customers = await SupabaseService.getAllCustomers()
+      const submissions = await SupabaseService.getAllSubmissions()
+      
+      const customersWithoutForms: FirstMessageCandidate[] = []
+      
+      for (const customer of customers) {
+        // Check if customer has any submissions
+        const hasSubmissions = submissions.some(sub => sub.phone_number === customer.phone_number)
+        
+        if (!hasSubmissions) {
+          const mapping = this.mapCriterionToFormType(customer.criterion)
+          customersWithoutForms.push({
+            customer,
+            suggestedFormType: mapping.formType,
+            suggestedFormLabel: mapping.formLabel
+          })
+        }
+      }
+      
+      return customersWithoutForms
+    } catch (error) {
+      console.error('Error getting customers without forms:', error)
+      return []
+    }
+  }
+
+  // Generate auth token and short URL for first message
+  private static async generateFirstMessageLink(phoneNumber: string, formType: string, formLabel: string): Promise<string | null> {
+    try {
+      // Format phone number for token service
+      const cleanPhone = phoneNumber.replace(/\D/g, '')
+      const formattedPhone = cleanPhone.startsWith('0') 
+        ? `+972${cleanPhone.substring(1)}` 
+        : `+972${cleanPhone}`
+
+      // Step 1: Create auth token directly using TokenService
+      const { TokenService } = await import('./token-service')
+      const tokenData = await TokenService.createAuthToken(formattedPhone, formType, {
+        expiryDays: 90,
+        isReusable: true,
+        createdByAdmin: true
+      })
+
+      if (!tokenData) {
+        console.error('Failed to create auth token')
+        return null
+      }
+
+      // Step 2: Create short URL using the same approach as the customer page
+      // Use the URL shortening API with proper parameters
+      const baseURL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+      console.log('Using baseURL for first message:', baseURL)
+      console.log('Making URL shortening request with params:', {
+        phoneNumber,
+        formType,
+        formTypeLabel: formLabel,
+        token: tokenData.token
+      })
+      
+      try {
+        const shortUrlResponse = await fetch(`${baseURL}/api/urls/shorten`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phoneNumber: phoneNumber, // Use original phone (not formatted)
+            formType: formType,
+            formTypeLabel: formLabel,
+            token: tokenData.token
+          })
+        })
+        
+        console.log('Short URL response status:', shortUrlResponse.status)
+
+        if (shortUrlResponse.ok) {
+          const shortData = await shortUrlResponse.json()
+          console.log('Short URL API response data:', shortData)
+          if (shortData.success) {
+            console.log('✅ Created short URL for first message:', shortData.shortUrl)
+            return shortData.shortUrl
+          } else {
+            console.error('❌ Short URL creation failed:', shortData.error)
+            // Fallback: generate tokenized URL manually
+            const fallbackUrl = TokenService.generateTokenizedURL(baseURL, phoneNumber, formType, tokenData.token)
+            console.log('⚠️ Using fallback tokenized URL:', fallbackUrl)
+            return fallbackUrl
+          }
+        } else {
+          const errorText = await shortUrlResponse.text()
+          console.error('❌ Short URL API error:', shortUrlResponse.status, errorText)
+          // Fallback: generate tokenized URL manually
+          const fallbackUrl = TokenService.generateTokenizedURL(baseURL, phoneNumber, formType, tokenData.token)
+          console.log('⚠️ Using fallback tokenized URL:', fallbackUrl)
+          return fallbackUrl
+        }
+      } catch (urlError) {
+        console.error('Error creating short URL:', urlError)
+        // Fallback: generate tokenized URL manually
+        const fallbackUrl = TokenService.generateTokenizedURL(baseURL, phoneNumber, formType, tokenData.token)
+        console.log('Using fallback tokenized URL:', fallbackUrl)
+        return fallbackUrl
+      }
+    } catch (error) {
+      console.error('Error generating first message link:', error)
+      return null
+    }
+  }
+
+  // Send first message to customer without forms
+  static async sendFirstMessage(candidate: FirstMessageCandidate): Promise<boolean> {
+    try {
+      const { customer, suggestedFormType, suggestedFormLabel } = candidate
+
+      // Generate the tokenized short URL
+      const formLink = await this.generateFirstMessageLink(customer.phone_number, suggestedFormType, suggestedFormLabel)
+      if (!formLink) {
+        console.error('Failed to generate form link for first message')
+        return false
+      }
+
+      // Create submission entry in database first
+      const submission = await SupabaseService.getOrCreateSubmission(
+        customer.phone_number,
+        suggestedFormType,
+        suggestedFormLabel
+      )
+
+      if (!submission) {
+        console.error('Failed to create submission for first message')
+        return false
+      }
+
+      // Mark as sent and get the message
+      await SupabaseService.updateSubmissionSentTracking(submission.id!, new Date().toISOString())
+      const message = this.getReminderMessage('first_message', submission, formLink)
+      const chatId = greenAPI.formatChatId(customer.phone_number)
+
+      // Send WhatsApp message
+      const result = await greenAPI.sendMessage(chatId, message)
+      
+      // Log the message
+      await SupabaseService.logMessage({
+        customer_id: customer.id,
+        phone_number: customer.phone_number,
+        message_type: 'form_link',
+        message_content: message,
+        form_type: suggestedFormType,
+        form_type_label: suggestedFormLabel,
+        sent_successfully: result.success,
+        error_message: result.success ? undefined : result.error,
+        whatsapp_message_id: result.data && typeof result.data === 'object' && 'idMessage' in result.data ? String(result.data.idMessage) : undefined
+      })
+      
+      if (result.success) {
+        console.log(`First message sent to ${customer.phone_number}: ${suggestedFormLabel}`)
+        return true
+      } else {
+        console.error(`Failed to send first message to ${customer.phone_number}:`, result.error)
+        return false
+      }
+    } catch (error) {
+      console.error('Error sending first message:', error)
       return false
     }
   }

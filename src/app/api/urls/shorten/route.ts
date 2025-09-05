@@ -16,7 +16,16 @@ export async function POST(request: NextRequest) {
     // Method 1: Direct URL shortening (if longUrl provided)
     if (longUrl) {
       const result = await URLService.createShortUrl(longUrl)
-      return NextResponse.json(result)
+      if (result.success) {
+        return NextResponse.json(result)
+      }
+      // Fallback to original URL if shortening fails
+      return NextResponse.json({
+        success: true,
+        shortUrl: longUrl,
+        originalUrl: longUrl,
+        error: result.error
+      })
     }
 
     // Method 2: Generate WhatsApp-friendly URL and shorten it

@@ -34,19 +34,55 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'phoneNumber and formType are required for send-now action' }, { status: 400 })
         }
         
-        // Create a fake candidate to send immediate reminder
+        // First check if there's an existing submission
         const submissions = await import('@/lib/supabase-service').then(m => m.SupabaseService.getAllSubmissions())
         const submission = submissions.find(s => s.phone_number === phoneNumber && s.form_type === formType)
         
-        if (!submission) {
-          return NextResponse.json({ error: 'Submission not found' }, { status: 404 })
-        }
+        let sendSuccess = false
 
-        const sendSuccess = await ReminderService.sendReminder({
-          submission,
-          reminderType: 'first', // Use first reminder template for manual sends
-          daysSinceLastAction: 0
-        })
+        if (submission) {
+          // Existing submission - send regular reminder
+          sendSuccess = await ReminderService.sendReminder({
+            submission,
+            reminderType: 'first', // Use first reminder template for manual sends
+            daysSinceLastAction: 0
+          })
+        } else {
+          // No submission exists - this is a first message candidate
+          // Get customer and check if they exist without forms
+          const { SupabaseService } = await import('@/lib/supabase-service')
+          const customer = await SupabaseService.getCustomerByPhone(phoneNumber)
+          
+          if (customer) {
+            // Map form type back to form label (reverse mapping using Hebrew slugs)
+            const formTypeToLabel: Record<string, string> = {
+              'זכאי-מגורים': 'מגורים באיזור זכאי',
+              'צבא-דרגה': 'צבא- דרגה',
+              'צבא-לוחם': 'צבא- לוחם',
+              'עבודה-זכאי-שכיר': 'עבודה באיזור זכאי שכיר',
+              'עבודה-זכאי-עצמאי': 'עבודה באיזור זכאי עצמאי',
+              'תלמיד-סטודנט': 'תלמיד / סטודנט',
+              'מתנדב': 'מתנדב',
+              'חקלאי-עצמאי': 'חקלאי עצמאי',
+              'חקלאי-שכיר': 'חקלאי שכיר',
+              'חקלאי-דרגה-ראשונה': 'חקלאי דרגה ראשונה',
+              'מאבטח': 'מאבטח',
+              'מנהל-ביטחון': 'מנהל ביטחון'
+            }
+
+            const formLabel = formTypeToLabel[formType] || 'מגורים באיזור זכאי'
+
+            const firstMessageCandidate = {
+              customer,
+              suggestedFormType: formType,
+              suggestedFormLabel: formLabel
+            }
+
+            sendSuccess = await ReminderService.sendFirstMessage(firstMessageCandidate)
+          } else {
+            return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
+          }
+        }
 
         return NextResponse.json({
           success: sendSuccess,

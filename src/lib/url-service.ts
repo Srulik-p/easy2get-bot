@@ -12,6 +12,8 @@ export interface UrlEncodeOptions {
 
 export class URLService {
   private static readonly TINYURL_API = 'https://tinyurl.com/api-create.php'
+  private static readonly TINYURL_V1_API = 'https://api.tinyurl.com/create'
+  private static readonly ISGD_API = 'https://is.gd/create.php'
   private static readonly CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours
 
   /**
@@ -69,7 +71,9 @@ export class URLService {
   }
 
   /**
-   * Create a short URL using TinyURL API
+   * Create a short URL using supported providers. Prefers TinyURL v1 (token),
+   * then falls back to is.gd. If all fail, returns failure so caller can use
+   * the original URL.
    */
   static async createShortUrl(longUrl: string, alias?: string): Promise<ShortUrlResponse> {
     try {
@@ -83,38 +87,48 @@ export class URLService {
         }
       }
 
-      // Build TinyURL API request
-      const apiUrl = new URL(this.TINYURL_API)
-      apiUrl.searchParams.set('url', longUrl)
-      if (alias) {
-        apiUrl.searchParams.set('alias', alias)
+      // Try TinyURL v1 (requires token)
+      const tinyToken = process.env.TINYURL_API_TOKEN
+      if (tinyToken) {
+        try {
+          const body: any = { url: longUrl, domain: 'tinyurl.com' }
+          if (alias) body.alias = alias
+          const res = await fetch(this.TINYURL_V1_API, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${tinyToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+          })
+          if (res.ok) {
+            const json: any = await res.json()
+            const tiny = json?.data?.tiny_url || json?.tiny_url
+            if (tiny) {
+              return { success: true, shortUrl: tiny, originalUrl: longUrl }
+            }
+          }
+        } catch (e) {
+          console.warn('TinyURL v1 failed; falling back to is.gd', e)
+        }
       }
 
-      const response = await fetch(apiUrl.toString(), {
-        method: 'GET',
-        headers: {
-          'User-Agent': 'Shimi-Arm-Gun-Bot/1.0'
-        }
-      })
+      // Fallback: is.gd (no token needed)
+      try {
+        const apiUrl = new URL(this.ISGD_API)
+        apiUrl.searchParams.set('format', 'simple')
+        apiUrl.searchParams.set('url', longUrl)
+        if (alias) apiUrl.searchParams.set('shorturl', alias)
 
-      if (!response.ok) {
-        throw new Error(`TinyURL API error: ${response.status}`)
-      }
-
-      const shortUrl = await response.text()
-
-      // Check if the response is a valid URL or error message
-      if (shortUrl.startsWith('http')) {
-        return {
-          success: true,
-          shortUrl: shortUrl.trim(),
-          originalUrl: longUrl
+        const response = await fetch(apiUrl.toString(), { method: 'GET' })
+        if (response.ok) {
+          const text = (await response.text()).trim()
+          if (text.startsWith('http')) {
+            return { success: true, shortUrl: text, originalUrl: longUrl }
+          }
         }
-      } else {
-        return {
-          success: false,
-          error: shortUrl.includes('Error') ? shortUrl : 'Failed to create short URL'
-        }
+      } catch (e) {
+        console.warn('is.gd failed to shorten URL', e)
       }
 
     } catch (error) {
@@ -165,7 +179,7 @@ export class URLService {
   }
 
   /**
-   * Create a short URL for WhatsApp sharing using TinyURL
+   * Create a short URL for WhatsApp sharing using supported providers
    */
   static async createWhatsAppShortUrl(
     baseUrl: string,
@@ -184,14 +198,28 @@ export class URLService {
         token
       )
 
-      // Create short URL using TinyURL only
+      // Create short URL using providers (TinyURL v1 -> is.gd)
       const shortUrlResult = await this.createShortUrl(longUrl)
-      return shortUrlResult
+      if (shortUrlResult.success) {
+        return shortUrlResult
+      }
+
+      // Graceful fallback: return original URL when shortening fails
+      console.warn('Shortening failed, falling back to original URL:', shortUrlResult.error)
+      return {
+        success: true,
+        shortUrl: longUrl,
+        originalUrl: longUrl,
+        error: shortUrlResult.error
+      }
 
     } catch (error) {
       console.error('Error creating WhatsApp short URL:', error)
       return {
-        success: false,
+        // Fallback to original URL on unexpected errors
+        success: true,
+        shortUrl: `${baseUrl}?phone=${phoneNumber}&type=${formType}${token ? `&token=${token}` : ''}`,
+        originalUrl: `${baseUrl}?phone=${phoneNumber}&type=${formType}${token ? `&token=${token}` : ''}`,
         error: error instanceof Error ? error.message : 'Unknown error occurred'
       }
     }
