@@ -160,9 +160,11 @@ export class URLService {
   ): string {
     try {
       const url = new URL(baseUrl)
-      
+      // Sanitize phone to avoid duplicated 972 prefixes
+      const sanitizedPhone = phoneNumber.trim().replace(/^(?:\+?972)+/, '+972')
+
       // Add basic parameters
-      url.searchParams.set('phone', phoneNumber)
+      url.searchParams.set('phone', sanitizedPhone)
       
       // Encode form type for WhatsApp compatibility
       const encodedFormType = this.encodeHebrewText(formType, { platform: 'whatsapp' })
@@ -181,7 +183,8 @@ export class URLService {
     } catch (error) {
       console.error('Error generating WhatsApp-friendly URL:', error)
       // Fallback to simple URL
-      return `${baseUrl}?phone=${phoneNumber}&type=${formType}${token ? `&token=${token}` : ''}`
+      const sanitized = phoneNumber.trim().replace(/^(?:\+?972)+/, '+972')
+      return `${baseUrl}?phone=${sanitized}&type=${formType}${token ? `&token=${token}` : ''}`
     }
   }
 

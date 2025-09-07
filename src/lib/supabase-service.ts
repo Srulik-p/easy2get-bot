@@ -18,11 +18,14 @@ export class SupabaseService {
     }
     
     try {
+      // Sanitize phone to avoid duplicated 972 prefixes
+      const sanitizedPhone = phoneNumber.trim().replace(/^(?:\+?972)+/, '+972')
+
       // First, try to get existing customer
       const { data: existing, error: fetchError } = await supabase
         .from('customers')
         .select('*')
-        .eq('phone_number', phoneNumber)
+        .eq('phone_number', sanitizedPhone)
         .maybeSingle()
 
       if (existing && !fetchError) {
@@ -33,7 +36,7 @@ export class SupabaseService {
       const { data, error } = await supabase
         .from('customers')
         .insert({
-          phone_number: phoneNumber
+          phone_number: sanitizedPhone
         })
         .select()
         .maybeSingle()
@@ -176,10 +179,12 @@ export class SupabaseService {
     }
     
     try {
-      console.log('Starting getOrCreateSubmission with:', { phoneNumber, formType, formTypeLabel })
+      // Sanitize phone to avoid duplicated 972 prefixes
+      const sanitizedPhone = phoneNumber.trim().replace(/^(?:\+?972)+/, '+972')
+      console.log('Starting getOrCreateSubmission with:', { phoneNumber: sanitizedPhone, formType, formTypeLabel })
       
       // First, ensure customer exists
-      const customer = await this.getOrCreateCustomer(phoneNumber)
+      const customer = await this.getOrCreateCustomer(sanitizedPhone)
       if (!customer) {
         console.error('Failed to get or create customer')
         return null
@@ -189,7 +194,7 @@ export class SupabaseService {
       const { data: existing, error: fetchError } = await supabase
         .from('customer_submissions')
         .select('*')
-        .eq('phone_number', phoneNumber)
+        .eq('phone_number', sanitizedPhone)
         .eq('form_type', formType)
         .maybeSingle()
 
@@ -210,7 +215,7 @@ export class SupabaseService {
         .from('customer_submissions')
         .insert({
           customer_id: customer.id,
-          phone_number: phoneNumber,
+          phone_number: sanitizedPhone,
           form_type: formType,
           form_type_label: formTypeLabel,
           submitted_fields: []
@@ -229,7 +234,7 @@ export class SupabaseService {
           errorKeys: error ? Object.keys(error) : [],
           fullError: JSON.stringify(error, null, 2),
           insertData: {
-            phone_number: phoneNumber,
+            phone_number: sanitizedPhone,
             form_type: formType,
             form_type_label: formTypeLabel,
             submitted_fields: [],
@@ -245,7 +250,7 @@ export class SupabaseService {
           .from('customer_submissions')
           .insert({
             customer_id: customer.id,
-            phone_number: phoneNumber,
+            phone_number: sanitizedPhone,
             form_type: formType,
             form_type_label: formTypeLabel
           })

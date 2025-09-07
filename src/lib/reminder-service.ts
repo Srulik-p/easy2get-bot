@@ -433,9 +433,14 @@ export class ReminderService {
     try {
       // Format phone number for token service
       const cleanPhone = phoneNumber.replace(/\D/g, '')
-      const formattedPhone = cleanPhone.startsWith('0') 
-        ? `+972${cleanPhone.substring(1)}` 
-        : `+972${cleanPhone}`
+      let formattedPhone: string
+      if (cleanPhone.startsWith('972')) {
+        formattedPhone = `+${cleanPhone}`
+      } else if (cleanPhone.startsWith('0')) {
+        formattedPhone = `+972${cleanPhone.substring(1)}`
+      } else {
+        formattedPhone = `+972${cleanPhone}`
+      }
 
       // Step 1: Create auth token directly using TokenService
       const { TokenService } = await import('./token-service')

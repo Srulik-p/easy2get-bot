@@ -150,7 +150,9 @@ export class TokenService {
     token: string
   ): string {
     const url = new URL(baseURL)
-    url.searchParams.set('phone', phoneNumber)
+    // Sanitize phone to avoid duplicated 972 prefixes
+    const sanitizedPhone = phoneNumber.trim().replace(/^(?:\+?972)+/, '+972')
+    url.searchParams.set('phone', sanitizedPhone)
     url.searchParams.set('type', formType)
     url.searchParams.set('token', token)
     return url.toString()
