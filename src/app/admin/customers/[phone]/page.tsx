@@ -33,7 +33,7 @@ export default function CustomerPage() {
   const [isCustomMessageModalOpen, setIsCustomMessageModalOpen] = useState(false)
   const [sendingMessage, setSendingMessage] = useState(false)
   const [editingDetails, setEditingDetails] = useState(false)
-  const [authTokens, setAuthTokens] = useState<AuthToken[]>([])
+  const [_authTokens, _setAuthTokens] = useState<AuthToken[]>([])
   const [customerDetails, setCustomerDetails] = useState({
     status: 'new_lead' as CustomerStatus,
     criterion: null as CustomerCriterion | null,
@@ -104,10 +104,10 @@ export default function CustomerPage() {
       // Load authorization tokens for this customer
       try {
         const tokens = await SupabaseService.getTokensByPhone(phoneNumber)
-        setAuthTokens(tokens)
+        _setAuthTokens(tokens)
       } catch (error) {
         console.warn('Failed to load authorization tokens:', error)
-        setAuthTokens([])
+        _setAuthTokens([])
     }
     
     setLoading(false)
@@ -291,7 +291,7 @@ export default function CustomerPage() {
     return 'in-progress'
   }
 
-  const handleRevokeToken = async (tokenId: string) => {
+  const _handleRevokeToken = async (tokenId: string) => {
     if (!confirm('האם אתה בטוח שברצונך לבטל את האסימון? פעולה זו לא ניתנת לביטול.')) {
       return
     }
@@ -302,7 +302,7 @@ export default function CustomerPage() {
         alert('האסימון בוטל בהצלחה!')
         // Refresh tokens
         const tokens = await SupabaseService.getTokensByPhone(phoneNumber)
-        setAuthTokens(tokens)
+        _setAuthTokens(tokens)
       } else {
         alert('שגיאה בביטול האסימון')
       }
@@ -312,7 +312,7 @@ export default function CustomerPage() {
     }
   }
 
-  const getTokenStatus = (token: AuthToken): { status: string; color: string; description: string } => {
+  const _getTokenStatus = (token: AuthToken): { status: string; color: string; description: string } => {
     const now = new Date()
     const expiration = new Date(token.expires_at)
     const isExpired = now > expiration

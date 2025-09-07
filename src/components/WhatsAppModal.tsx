@@ -16,8 +16,8 @@ export default function WhatsAppModal({ isOpen, onClose, phoneNumber, onSendLink
   const [sending, setSending] = useState(false);
   const [generateAuthorizedLink, setGenerateAuthorizedLink] = useState(true);
   const [useShortUrl, setUseShortUrl] = useState(true);
-  const [tokenExpiry, setTokenExpiry] = useState(90);
-  const [isReusableToken, setIsReusableToken] = useState(false);
+  const [_tokenExpiry, _setTokenExpiry] = useState(90);
+  const [_isReusableToken, _setIsReusableToken] = useState(false);
   const [generatedUrls, setGeneratedUrls] = useState<{
     regular?: string;
     short?: string;
@@ -79,8 +79,8 @@ export default function WhatsAppModal({ isOpen, onClose, phoneNumber, onSendLink
             body: JSON.stringify({
               phoneNumber: formattedPhone,
               formType: selectedFormType,
-              expiryDays: tokenExpiry,
-              isReusable: isReusableToken,
+              expiryDays: _tokenExpiry,
+              isReusable: _isReusableToken,
               adminKey: 'shimi-admin-2024-secure-key-auth-tokens'
             })
           });

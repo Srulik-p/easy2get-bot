@@ -91,7 +91,7 @@ export class URLService {
       const tinyToken = process.env.TINYURL_API_TOKEN
       if (tinyToken) {
         try {
-          const body: any = { url: longUrl, domain: 'tinyurl.com' }
+          const body: { url: string; domain: string; alias?: string } = { url: longUrl, domain: 'tinyurl.com' }
           if (alias) body.alias = alias
           const res = await fetch(this.TINYURL_V1_API, {
             method: 'POST',
@@ -102,7 +102,7 @@ export class URLService {
             body: JSON.stringify(body)
           })
           if (res.ok) {
-            const json: any = await res.json()
+            const json: { data?: { tiny_url?: string }; tiny_url?: string } = await res.json()
             const tiny = json?.data?.tiny_url || json?.tiny_url
             if (tiny) {
               return { success: true, shortUrl: tiny, originalUrl: longUrl }
@@ -137,6 +137,13 @@ export class URLService {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred'
       }
+    }
+
+    // Fallback: return failure if all methods fail
+    return {
+      success: false,
+      error: 'All URL shortening methods failed',
+      originalUrl: longUrl
     }
   }
 
@@ -301,7 +308,7 @@ export class URLService {
       const timestamp = Date.now().toString().slice(-6)
       
       return `form_${formShort}_${phoneDigits}_${timestamp}`.toLowerCase()
-    } catch (error) {
+    } catch (_error) {
       // Fallback to timestamp-based alias
       return `form_${Date.now()}`
     }

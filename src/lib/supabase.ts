@@ -104,3 +104,47 @@ export type AuthToken = {
   created_at?: string
   updated_at?: string
 }
+
+// Batch Reminder Types
+export type ReminderType = 
+  | 'first_message' 
+  | 'first' 
+  | 'second' 
+  | 'first_week' 
+  | 'second_week' 
+  | 'third_week' 
+  | 'fourth_week'
+
+export type BatchRecipient = {
+  phoneNumber: string
+  formType: string
+  reminderType: ReminderType
+  submission?: CustomerSubmission
+}
+
+export type BatchProgress = {
+  totalCount: number
+  sentCount: number
+  failedCount: number
+  currentRecipient?: string
+  currentStatus: 'preparing' | 'sending' | 'sleeping' | 'completed' | 'failed'
+  estimatedTimeRemaining?: number
+  lastError?: string
+}
+
+export type BatchResult = {
+  success: boolean
+  totalSent: number
+  totalFailed: number
+  errors: Array<{ phoneNumber: string; error: string }>
+  duration: number
+}
+
+export type ReminderCandidate = {
+  phoneNumber: string
+  formType: string
+  formTypeLabel?: string
+  reminderType: ReminderType
+  daysSinceLastAction: number
+  reminderCount: number
+}

@@ -69,6 +69,14 @@ const normalizePhone = (phone: string): string => {
   return `+972${digits}`
 }
 
+// Ensure URL param never contains duplicated 972 prefix (e.g., +972972...)
+const sanitizePhoneForUrl = (phone: string): string => {
+  if (!phone) return ''
+  const trimmed = phone.trim()
+  // Collapse any leading sequence of 972/+972 into a single +972
+  return trimmed.replace(/^(?:\+?972)+/, '+972')
+}
+
 // Function to get form fields for a specific type
 const getFormFields = (formTypeSlug: string, selectedMailDocs: string[] = []) => {
   const formType = formTypes.find(type => type.slug === formTypeSlug);
@@ -179,33 +187,43 @@ export default function CustomerForm() {
           const result = await response.json();
           
           if (result.success && result.isValid) {
-            // Verify token phone matches URL phone (normalize for safety)
+            // Prefer the token's phone number; if URL is missing or mismatched, trust the token
             const tokenPhone: string = result.data.phoneNumber
             const normalizedTokenPhone = normalizePhone(tokenPhone)
             const normalizedUrlPhone = normalizePhone(phoneNumberFromUrl)
-            if (normalizedTokenPhone === normalizedUrlPhone) {
-              console.log('Valid authorization token found, auto-authenticating user');
-              
-              // Auto-authenticate with token
-              AuthService.setClientAuth(phoneNumberFromUrl);
-              setVerifiedPhoneNumber(phoneNumberFromUrl);
-              setIsAuthenticated(true);
-              
-              // Mark token as used if it's single-use
-              if (!result.data.isReusable) {
-                try {
-                  await fetch('/api/auth/validate-token', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: tokenFromUrl, markAsUsed: true })
-                  });
-                } catch (error) {
-                  console.warn('Failed to mark token as used:', error);
-                }
-              }
-              
-              return; // Skip other authentication methods
+
+            const phoneToUse = normalizedTokenPhone === normalizedUrlPhone && phoneNumberFromUrl
+              ? phoneNumberFromUrl
+              : normalizedTokenPhone
+
+            console.log('Valid authorization token found, auto-authenticating user');
+
+            // Auto-authenticate with token
+            AuthService.setClientAuth(phoneToUse)
+            setVerifiedPhoneNumber(phoneToUse)
+            setIsAuthenticated(true)
+
+            // If URL phone missing or mismatched, update the URL to reflect authenticated phone
+            if (!phoneNumberFromUrl || normalizedTokenPhone !== normalizedUrlPhone) {
+              const params = new URLSearchParams(searchParams.toString())
+              params.set('phone', sanitizePhoneForUrl(phoneToUse))
+              router.push(`/?${params.toString()}`)
             }
+
+            // Mark token as used if it's single-use
+            if (!result.data.isReusable) {
+              try {
+                await fetch('/api/auth/validate-token', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token: tokenFromUrl, markAsUsed: true })
+                })
+              } catch (error) {
+                console.warn('Failed to mark token as used:', error)
+              }
+            }
+
+            return // Skip other authentication methods
           } else {
             console.warn('Invalid or expired authorization token');
           }
@@ -232,7 +250,7 @@ export default function CustomerForm() {
           
           // Update URL with authenticated phone
           const params = new URLSearchParams(searchParams.toString());
-          params.set('phone', existingAuth.phoneNumber);
+          params.set('phone', sanitizePhoneForUrl(existingAuth.phoneNumber));
           router.push(`/?${params.toString()}`);
           return;
         }
@@ -252,7 +270,7 @@ export default function CustomerForm() {
     
     // Update URL with verified phone number
     const params = new URLSearchParams(searchParams.toString());
-    params.set('phone', phone);
+    params.set('phone', sanitizePhoneForUrl(phone));
     router.push(`/?${params.toString()}`);
   };
 
@@ -438,7 +456,7 @@ export default function CustomerForm() {
     const params = new URLSearchParams(searchParams.toString());
     params.set('type', newType);
     if (phoneNumber) {
-      params.set('phone', phoneNumber);
+      params.set('phone', sanitizePhoneForUrl(phoneNumber));
     }
     router.push(`/?${params.toString()}`);
   };

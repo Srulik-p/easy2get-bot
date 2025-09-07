@@ -5,7 +5,7 @@ import { SupabaseService } from '@/lib/supabase-service'
 
 export async function POST(request: NextRequest) {
   try {
-    const { phoneNumber, message, fileUrl, fileName, caption, formType, customerName, customerId } = await request.json()
+    const { phoneNumber, message, fileUrl, fileName, caption, formType, customerName: _customerName, customerId } = await request.json()
 
     if (!phoneNumber) {
       return NextResponse.json({ error: 'Phone number is required' }, { status: 400 })

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { SupabaseService } from '@/lib/supabase-service'
-import { CustomerSubmission, Customer, CustomerStatus } from '@/lib/supabase'
+import { CustomerSubmission, Customer, CustomerStatus, CustomerCriterion } from '@/lib/supabase'
 import Link from 'next/link'
 import NewCustomerLinkModal from './NewCustomerLinkModal'
 import formFieldsData from '@/data/form-fields.json'
@@ -72,7 +72,7 @@ export default function AdminPanel() {
     
     // Then, add submissions to existing groups or create new ones
     submissions.forEach(submission => {
-      let existingGroup = groups.find(g => g.phoneNumber === submission.phone_number)
+      const existingGroup = groups.find(g => g.phoneNumber === submission.phone_number)
     if (existingGroup) {
       existingGroup.submissions.push(submission)
     } else {
@@ -180,7 +180,7 @@ export default function AdminPanel() {
               phone_number: formattedPhone,
               name: firstName,
               family_name: lastName,
-              criterion: formType as any,
+              criterion: formType as CustomerCriterion,
               status: 'agreement_signed'
             })
             customerId = newCustomer?.id
@@ -192,7 +192,7 @@ export default function AdminPanel() {
               await SupabaseService.updateCustomer(existingCustomer.id, {
                 name: firstName,
                 family_name: lastName,
-                criterion: existingCustomer.criterion || (formType as any)
+                criterion: existingCustomer.criterion || (formType as CustomerCriterion)
               })
               console.log('Updated existing customer with name:', { id: existingCustomer.id, name: firstName, family_name: lastName })
             }
@@ -492,7 +492,7 @@ export default function AdminPanel() {
                     aria-label="בחר קובץ CSV"
                     className="w-full"
                   />
-                  <p className="text-xs text-gray-500 mt-1">עמודות דרושות: "שם עסק", "נייד"/"טלפון", "ח.פ."</p>
+                  <p className="text-xs text-gray-500 mt-1">עמודות דרושות: &quot;שם עסק&quot;, &quot;נייד&quot;/&quot;טלפון&quot;, &quot;ח.פ.&quot;</p>
                                 </div>
                               </div>
               <div className="flex justify-end gap-2 mt-6">

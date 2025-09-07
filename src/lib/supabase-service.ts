@@ -301,8 +301,8 @@ export class SupabaseService {
         return true
       }
       // If no HTTP status provided, consider lack of error code/message as success
-      const errCode = (error as any)?.code
-      const errMsg = (error as any)?.message
+      const errCode = (error as { code?: string })?.code
+      const errMsg = (error as { message?: string })?.message
       if (!error || (!errCode && !errMsg)) {
         return true
       }
@@ -351,7 +351,7 @@ export class SupabaseService {
     
     try {
       // Filter out fields that might not exist in the database
-      const filteredUpdates: any = {}
+      const filteredUpdates: Record<string, unknown> = {}
       for (const [key, value] of Object.entries(updates)) {
         // Skip reminder-specific columns if they might not exist
         if (key === 'reminder_count' || key === 'last_reminder_sent_at' || key === 'reminder_paused') {
@@ -429,8 +429,8 @@ export class SupabaseService {
 
       if (error) {
         // If the column doesn't exist in the DB yet, skip gracefully
-        if ((error as any)?.code === 'PGRST204' ||
-            (error as any)?.message?.toString?.().includes('does not exist')) {
+        if ((error as { code?: string })?.code === 'PGRST204' ||
+            (error as { message?: { toString?: () => string } })?.message?.toString?.().includes('does not exist')) {
           console.warn('last_interaction_at column not found - skipping interaction tracking')
           return true
         }
@@ -871,7 +871,7 @@ export class SupabaseService {
           .from('message_logs')
           .delete()
           .eq('phone_number', phoneNumber)
-      } catch (e) {
+      } catch (_e) {
         // Table may not exist; ignore
       }
 
@@ -880,7 +880,7 @@ export class SupabaseService {
           .from('auth_tokens')
           .delete()
           .eq('phone_number', phoneNumber)
-      } catch (e) {
+      } catch (_e) {
         // Table may not exist; ignore
       }
 

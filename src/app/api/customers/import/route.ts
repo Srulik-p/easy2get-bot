@@ -6,6 +6,7 @@ interface CsvRow {
   ['נייד']?: string
   ['טלפון']?: string
   ['ח.פ.']?: string
+  [key: string]: string | undefined
 }
 
 function parseCsv(content: string): CsvRow[] {
@@ -18,7 +19,7 @@ function parseCsv(content: string): CsvRow[] {
     const cols = lines[i].split(',')
     const row: CsvRow = {}
     header.forEach((key, idx) => {
-      ;(row as any)[key] = (cols[idx] || '').trim()
+      row[key] = (cols[idx] || '').trim()
     })
     rows.push(row)
   }
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, count: results.length, results })
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -1,13 +1,13 @@
 import { SupabaseService } from './supabase-service'
 import { greenAPI } from './green-api'
-import { CustomerSubmission, MessageLog } from './supabase'
+import { CustomerSubmission, MessageLog, ReminderType } from './supabase'
 import formFieldsData from '@/data/form-fields.json'
 import fs from 'fs'
 import path from 'path'
 
 interface ReminderCandidate {
   submission: CustomerSubmission
-  reminderType: 'first_message' | 'first' | 'second' | 'first_week' | 'second_week' | 'third_week' | 'fourth_week'
+  reminderType: ReminderType
   daysSinceLastAction: number
 }
 
@@ -135,7 +135,7 @@ export class ReminderService {
   private static determineReminderType(
     submission: CustomerSubmission, 
     now: Date
-  ): 'first_message' | 'first' | 'second' | 'first_week' | 'second_week' | 'third_week' | 'fourth_week' | null {
+  ): ReminderType | null {
     
     const firstSentAt = new Date(submission.first_sent_at!)
     const lastInteractionAt = submission.last_interaction_at ? new Date(submission.last_interaction_at) : firstSentAt
@@ -241,9 +241,9 @@ export class ReminderService {
   }
 
   // Get reminder message based on type
-  private static getReminderMessage(reminderType: 'first_message' | 'first' | 'second' | 'first_week' | 'second_week' | 'third_week' | 'fourth_week', submission: CustomerSubmission, formLink?: string): string {
+  private static getReminderMessage(reminderType: ReminderType, submission: CustomerSubmission, formLink?: string): string {
     const formLabel = submission.form_type_label
-    const customerName = this.getCustomerName(submission)
+    const customerName = this.getCustomerName()
     const templates = this.loadMessageTemplates()
 
     let template: string
@@ -281,12 +281,12 @@ export class ReminderService {
   }
 
   // Get customer name with fallback
-  private static getCustomerName(_submission: CustomerSubmission): string {
+  private static getCustomerName(): string {
     return 'לקוח יקר' // "Dear customer" fallback
   }
 
   // Update reminder tracking in database
-  private static async updateReminderTracking(submissionId: string, reminderType: 'first_message' | 'first' | 'second' | 'first_week' | 'second_week' | 'third_week' | 'fourth_week'): Promise<void> {
+  private static async updateReminderTracking(submissionId: string, reminderType: ReminderType): Promise<void> {
     try {
       const updates: Partial<CustomerSubmission> = {
         last_reminder_sent_at: new Date().toISOString()
